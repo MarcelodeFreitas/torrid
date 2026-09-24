@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Torrid.Core", "Torrid.Core\Torrid.Core.csproj", "{A3D28309-2027-469B-8171-73BFF5C86F64}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Torrid.App", "Torrid.App\Torrid.App.csproj", "{77904EB8-C886-4E5E-89DC-2D886857F13F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Torrid.Tests", "Torrid.Tests\Torrid.Tests.csproj", "{741B6002-6AB5-47DF-92F9-5218C5E4711E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A3D28309-2027-469B-8171-73BFF5C86F64}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3D28309-2027-469B-8171-73BFF5C86F64}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3D28309-2027-469B-8171-73BFF5C86F64}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3D28309-2027-469B-8171-73BFF5C86F64}.Release|Any CPU.Build.0 = Release|Any CPU
+		{77904EB8-C886-4E5E-89DC-2D886857F13F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{77904EB8-C886-4E5E-89DC-2D886857F13F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{77904EB8-C886-4E5E-89DC-2D886857F13F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{77904EB8-C886-4E5E-89DC-2D886857F13F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{741B6002-6AB5-47DF-92F9-5218C5E4711E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{741B6002-6AB5-47DF-92F9-5218C5E4711E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{741B6002-6AB5-47DF-92F9-5218C5E4711E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{741B6002-6AB5-47DF-92F9-5218C5E4711E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
