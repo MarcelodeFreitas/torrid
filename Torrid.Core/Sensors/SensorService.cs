@@ -14,8 +14,8 @@ public sealed class SensorService : ISensorSource, IDisposable
         _computer = new Computer { IsCpuEnabled = true, IsGpuEnabled = true };
         _computer.Open();
 
-        _timer = new System.Timers.Timer(pollIntervalMs) { AutoReset = true };
-        _timer.Elapsed += (_, _) => Poll();
+        _timer = new System.Timers.Timer(pollIntervalMs) { AutoReset = false };
+        _timer.Elapsed += (_, _) => PollAndReschedule();
 
         Poll();
     }
@@ -28,13 +28,34 @@ public sealed class SensorService : ISensorSource, IDisposable
 
     public void Stop() => _timer.Stop();
 
+    private void PollAndReschedule()
+    {
+        try
+        {
+            Poll();
+        }
+        finally
+        {
+            _timer.Start();
+        }
+    }
+
     private void Poll()
     {
-        _computer.Accept(_visitor);
-        var snapshot = _computer.Hardware.Select(ToSnapshot).ToList();
-        var readings = SensorReadingBuilder.Build(snapshot);
-        CurrentReadings = readings;
-        ReadingsUpdated?.Invoke(this, readings);
+        try
+        {
+            _computer.Accept(_visitor);
+            var snapshot = _computer.Hardware.Select(ToSnapshot).ToList();
+            var readings = SensorReadingBuilder.Build(snapshot);
+            CurrentReadings = readings;
+            ReadingsUpdated?.Invoke(this, readings);
+        }
+        catch
+        {
+            var unavailable = SensorReadingBuilder.ToUnavailable(CurrentReadings);
+            CurrentReadings = unavailable;
+            ReadingsUpdated?.Invoke(this, unavailable);
+        }
     }
 
     private static HardwareSnapshot ToSnapshot(IHardware hardware) => new(

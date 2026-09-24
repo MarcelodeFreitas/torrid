@@ -58,7 +58,20 @@ public class NotificationServiceTests
         var service = new NotificationService(notifier, new FakeClock(), refireMinutes: 0);
 
         service.Evaluate(new[] { Cpu(85.1) }, Thresholds); // enters red -> 1 alert
-        service.Evaluate(new[] { Cpu(84.9) }, Thresholds); // yellow, not red -> resets hysteresis
+        service.Evaluate(new[] { Cpu(84.9) }, Thresholds); // just below red, within re-arm margin -> still armed
+        service.Evaluate(new[] { Cpu(85.1) }, Thresholds); // re-enters red, but never un-armed -> no 2nd alert
+
+        Assert.Single(notifier.ShownAlerts);
+    }
+
+    [Fact]
+    public void Evaluate_WhenGenuinelyDropsBelowReArmMargin_RefiresOnReEntry()
+    {
+        var notifier = new RecordingToastNotifier();
+        var service = new NotificationService(notifier, new FakeClock(), refireMinutes: 0);
+
+        service.Evaluate(new[] { Cpu(85.1) }, Thresholds); // enters red -> 1st alert
+        service.Evaluate(new[] { Cpu(81.9) }, Thresholds); // drops to/below YellowMax - margin (85-3=82) -> re-arms
         service.Evaluate(new[] { Cpu(85.1) }, Thresholds); // re-enters red -> 2nd alert
 
         Assert.Equal(2, notifier.ShownAlerts.Count);

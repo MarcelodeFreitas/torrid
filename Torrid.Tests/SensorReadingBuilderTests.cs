@@ -77,4 +77,37 @@ public class SensorReadingBuilderTests
 
         Assert.Null(readings[0].ValueCelsius);
     }
+
+    [Fact]
+    public void ToUnavailable_GivenReadingsWithValues_ReturnsSameIdentityWithNullValues()
+    {
+        var readings = new List<SensorReading>
+        {
+            new("cpu", "CPU", SensorKind.CpuPackage, null, 59.0),
+            new("gpu0-core", "GPU0 Core", SensorKind.GpuCore, 0, 41.0),
+        };
+
+        var result = SensorReadingBuilder.ToUnavailable(readings);
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal("cpu", result[0].Id);
+        Assert.Equal("CPU", result[0].Label);
+        Assert.Equal(SensorKind.CpuPackage, result[0].Kind);
+        Assert.Null(result[0].GpuIndex);
+        Assert.Null(result[0].ValueCelsius);
+
+        Assert.Equal("gpu0-core", result[1].Id);
+        Assert.Equal("GPU0 Core", result[1].Label);
+        Assert.Equal(SensorKind.GpuCore, result[1].Kind);
+        Assert.Equal(0, result[1].GpuIndex);
+        Assert.Null(result[1].ValueCelsius);
+    }
+
+    [Fact]
+    public void ToUnavailable_GivenEmptyList_ReturnsEmptyList()
+    {
+        var result = SensorReadingBuilder.ToUnavailable(Array.Empty<SensorReading>());
+
+        Assert.Empty(result);
+    }
 }

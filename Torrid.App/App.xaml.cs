@@ -14,11 +14,12 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        SetCurrentProcessExplicitAppUserModelID(AppUserModelId);
+        var hr = SetCurrentProcessExplicitAppUserModelID(AppUserModelId);
+        if (hr != 0) System.Diagnostics.Debug.WriteLine($"SetCurrentProcessExplicitAppUserModelID failed: 0x{hr:X8}");
         base.OnStartup(e);
     }
 
     [DllImport("shell32.dll", SetLastError = true)]
-    private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
+    private static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
 }
 

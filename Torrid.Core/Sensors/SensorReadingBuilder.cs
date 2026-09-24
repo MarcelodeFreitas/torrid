@@ -47,4 +47,7 @@ public static class SensorReadingBuilder
 
     private static double? FindTemperature(HardwareSnapshot hardware, string sensorName) =>
         hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature && s.Name == sensorName)?.Value;
+
+    public static IReadOnlyList<SensorReading> ToUnavailable(IReadOnlyList<SensorReading> readings) =>
+        readings.Select(r => r with { ValueCelsius = null }).ToList();
 }

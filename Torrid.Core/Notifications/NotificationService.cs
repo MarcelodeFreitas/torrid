@@ -9,14 +9,16 @@ public sealed class NotificationService
     private readonly IToastNotifier _notifier;
     private readonly IClock _clock;
     private readonly int _refireMinutes;
+    private readonly double _reArmMarginCelsius;
     private readonly Dictionary<string, DateTime> _lastNotifiedUtc = new();
     private readonly HashSet<string> _currentlyRed = new();
 
-    public NotificationService(IToastNotifier notifier, IClock clock, int refireMinutes)
+    public NotificationService(IToastNotifier notifier, IClock clock, int refireMinutes, double reArmMarginCelsius = 3.0)
     {
         _notifier = notifier;
         _clock = clock;
         _refireMinutes = refireMinutes;
+        _reArmMarginCelsius = reArmMarginCelsius;
     }
 
     public void Evaluate(IReadOnlyList<SensorReading> readings, IReadOnlyDictionary<SensorKind, ThresholdBand> thresholds)
@@ -41,7 +43,7 @@ public sealed class NotificationService
                 _notifier.ShowRedAlert(reading);
                 _lastNotifiedUtc[reading.Id] = _clock.UtcNow;
             }
-            else if (!isRed && wasRed)
+            else if (wasRed && value <= band.YellowMax - _reArmMarginCelsius)
             {
                 _currentlyRed.Remove(reading.Id);
             }

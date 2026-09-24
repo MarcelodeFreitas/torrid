@@ -8,10 +8,17 @@ public sealed class WindowsToastNotifier : IToastNotifier
 {
     public void ShowRedAlert(SensorReading reading)
     {
-        var value = reading.ValueCelsius is double v ? $"{v:F0}°C" : "unknown";
-        new ToastContentBuilder()
-            .AddText("Torrid — temperature critical")
-            .AddText($"{reading.Label} is at {value}")
-            .Show();
+        try
+        {
+            var value = reading.ValueCelsius is double v ? $"{v:F0}°C" : "unknown";
+            new ToastContentBuilder()
+                .AddText("Torrid — temperature critical")
+                .AddText($"{reading.Label} is at {value}")
+                .Show();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ShowRedAlert failed: {ex}");
+        }
     }
 }
