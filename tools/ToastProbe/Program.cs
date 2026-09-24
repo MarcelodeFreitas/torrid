@@ -11,6 +11,16 @@ SetCurrentProcessExplicitAppUserModelID("ToastProbe.App");
 
 try
 {
+    var notifier = ToastNotificationManagerCompat.CreateToastNotifier();
+    Console.WriteLine($"NotificationSetting: {notifier.Setting}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine("EXCEPTION getting Setting: " + ex);
+}
+
+try
+{
     new ToastContentBuilder()
         .AddText("ToastProbe test")
         .AddText($"Elevated={isElevated}")

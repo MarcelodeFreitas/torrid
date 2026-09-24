@@ -25,7 +25,30 @@ determined — candidates not yet checked:
   path is actually being hit by `ToastContentBuilder.Show()` on this package version,
   vs. silently falling back to something that no-ops without a package identity.
 
-**Deferred per explicit user instruction 2026-09-24** — revisit before Phase 1/the
+## Update 2026-09-25 — additional diagnostics from the final Phase 1 review
+
+The final whole-branch review inspected the registry directly and found the AUMID
+registration itself succeeded for both `Torrid.App` and `ToastProbe.App`
+(`HKCU\Software\Classes\AppUserModelId\<aumid>` has `DisplayName`/`IconUri`/
+`CustomActivator` for both), but neither has an entry under
+`HKCU\...\Notifications\Settings` (which Windows writes when it accepts a
+notification from an app) - while other apps on the machine do, one dated
+2026-09-24 (the actual test day). `PushNotifications\ToastEnabled = 1` globally.
+
+Following that lead, `ToastNotificationManagerCompat.CreateToastNotifier().Setting`
+was checked directly (added to this probe) and returned **`Enabled`** - no
+`DisabledForApplication`, `DisabledForUser`, `DisabledByGroupPolicy`, or
+`DisabledByManifest`. This rules out every permission-based block the API
+exposes, yet the toast still produces no banner and no Action Center entry.
+
+**Net result:** registration succeeds, the OS reports the notification as
+permitted, `.Show()` throws nothing - and still nothing is ever delivered or
+recorded. Root cause remains undetermined; deeper candidates (untested):
+whether a `ToastNotification.Failed` event handler would reveal a delivery-time
+failure, or something specific to this Windows build/session not covered by the
+documented API surface.
+
+**Deferred per explicit user instruction 2026-09-24/25** - revisit before Phase 1/the
 notification feature is considered done. `NotificationService` (the debounce/hysteresis
 logic) is unaffected and fully unit-tested independent of this; only the actual OS
 toast delivery is unverified/broken.
