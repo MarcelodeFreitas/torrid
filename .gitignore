@@ -1,0 +1,11 @@
+# .NET / Visual Studio
+bin/
+obj/
+*.user
+.vs/
+
+# Rider
+.idea/
+
+# Publish output
+publish/
