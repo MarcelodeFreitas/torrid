@@ -9,3 +9,6 @@ obj/
 
 # Publish output
 publish/
+
+# superpowers subagent-driven-development scratch workspace
+.superpowers/
