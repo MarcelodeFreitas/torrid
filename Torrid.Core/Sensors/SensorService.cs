@@ -1,0 +1,67 @@
+namespace Torrid.Core.Sensors;
+
+using LibreHardwareMonitor.Hardware;
+using Torrid.Core.Models;
+
+public sealed class SensorService : ISensorSource, IDisposable
+{
+    private readonly Computer _computer;
+    private readonly System.Timers.Timer _timer;
+    private readonly UpdateVisitor _visitor = new();
+
+    public SensorService(int pollIntervalMs)
+    {
+        _computer = new Computer { IsCpuEnabled = true, IsGpuEnabled = true };
+        _computer.Open();
+
+        _timer = new System.Timers.Timer(pollIntervalMs) { AutoReset = true };
+        _timer.Elapsed += (_, _) => Poll();
+
+        Poll();
+    }
+
+    public IReadOnlyList<SensorReading> CurrentReadings { get; private set; } = Array.Empty<SensorReading>();
+
+    public event EventHandler<IReadOnlyList<SensorReading>>? ReadingsUpdated;
+
+    public void Start() => _timer.Start();
+
+    public void Stop() => _timer.Stop();
+
+    private void Poll()
+    {
+        _computer.Accept(_visitor);
+        var snapshot = _computer.Hardware.Select(ToSnapshot).ToList();
+        var readings = SensorReadingBuilder.Build(snapshot);
+        CurrentReadings = readings;
+        ReadingsUpdated?.Invoke(this, readings);
+    }
+
+    private static HardwareSnapshot ToSnapshot(IHardware hardware) => new(
+        hardware.HardwareType,
+        hardware.Name,
+        hardware.Sensors.Select(s => new SensorSnapshot(s.Name, s.SensorType, s.Value)).ToList(),
+        hardware.SubHardware.Select(ToSnapshot).ToList());
+
+    public void Dispose()
+    {
+        _timer.Stop();
+        _timer.Dispose();
+        _computer.Close();
+    }
+
+    private sealed class UpdateVisitor : IVisitor
+    {
+        public void VisitComputer(IComputer computer) => computer.Traverse(this);
+
+        public void VisitHardware(IHardware hardware)
+        {
+            hardware.Update();
+            foreach (var sub in hardware.SubHardware) sub.Accept(this);
+        }
+
+        public void VisitSensor(ISensor sensor) { }
+
+        public void VisitParameter(IParameter parameter) { }
+    }
+}
