@@ -1759,3 +1759,93 @@ Run the app elevated (requires human UAC approval — you likely cannot get this
 git add Torrid.App/Tray/SingleValueBitmapRenderer.cs Torrid.App/MainWindow.xaml Torrid.App/SettingsWindow.xaml
 git commit -m "Fix tray icon text clipping with self-fitting font; restyle windows to plain system-native look"
 ```
+
+---
+
+### Task 8: Non-elevated Debug builds for fast iteration
+
+Every visual-iteration round so far has required a human to approve a UAC prompt to launch the app, and — twice — to manually close an orphaned elevated process afterward, because an elevated process can't be terminated by non-elevated automation (`Stop-Process`/`taskkill` both return "Access is denied"). This is real, repeated friction, and the user explicitly asked for a way to iterate without it.
+
+`Torrid.App.csproj` embeds `app.manifest` (`requestedExecutionLevel level="requireAdministrator"`) into every build — Debug included — which is why even a plain `dotnet run` during development triggers UAC. The fix: give Debug builds a *different* manifest that requests `asInvoker` (no elevation) instead, while Release builds (what `PROJECT_PLAN.md`'s acceptance criteria and this plan's Task 5 packaging step actually care about) keep `requireAdministrator` exactly as before.
+
+This has one real tradeoff, not a bug to fix: per `tools/SensorProbe/FINDINGS.md` (Phase 0), the CPU temperature sensor (`Core (Tctl/Tdie)`) reads `0.0` without elevation — so a non-elevated dev build will show a real (if incorrect-looking, ~0°C, blue) CPU value while GPU Core/Hot Spot/VRAM temps read correctly even unelevated. That's an acceptable, known limitation for a fast dev loop, not something this task tries to work around.
+
+**Files:**
+- Create: `Torrid.App/app.dev.manifest`
+- Modify: `Torrid.App/Torrid.App.csproj`
+
+**Interfaces:**
+- Consumes: nothing new.
+- Produces: nothing consumed by later tasks — this is the last task in the plan.
+
+No new tests (build-configuration change, not application logic).
+
+- [ ] **Step 1: Create the non-elevated manifest**
+
+Create `Torrid.App/app.dev.manifest` as an exact copy of `Torrid.App/app.manifest` except the execution level:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="Torrid.App"/>
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/PM</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>
+```
+
+- [ ] **Step 2: Make the manifest choice depend on build configuration**
+
+Read the current `Torrid.App/Torrid.App.csproj` first (it's short, ~15 lines) so your edit lands on the real file. Find the line:
+
+```xml
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+```
+
+Replace it with:
+
+```xml
+    <ApplicationManifest Condition="'$(Configuration)' == 'Debug'">app.dev.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="'$(Configuration)' != 'Debug'">app.manifest</ApplicationManifest>
+```
+
+Do not change anything else in the file.
+
+- [ ] **Step 3: Build both configurations and confirm the manifests differ**
+
+Run: `& "C:\Program Files\dotnet\dotnet.exe" build Torrid.sln -c Debug`
+Expected: Build succeeded, 0 errors.
+
+Run: `& "C:\Program Files\dotnet\dotnet.exe" build Torrid.App/Torrid.App.csproj -c Release`
+Expected: Build succeeded, 0 errors.
+
+Run: `& "C:\Program Files\dotnet\dotnet.exe" test Torrid.sln`
+Expected: all existing tests still pass (this task adds no new tests, count unchanged).
+
+Confirm the manifests actually differ by checking the embedded execution level in each built exe. `sigcheck`/`mt.exe` aren't guaranteed available — instead just search the binary for the literal string, which reliably works for an uncompressed embedded manifest:
+
+```powershell
+Select-String -Path "Torrid.App\bin\Debug\net8.0-windows10.0.17763.0\Torrid.App.exe" -Pattern "asInvoker" -Encoding utf8
+Select-String -Path "Torrid.App\bin\Release\net8.0-windows10.0.17763.0\Torrid.App.exe" -Pattern "requireAdministrator" -Encoding utf8
+```
+
+Expected: the Debug exe's search finds `asInvoker`, the Release exe's search finds `requireAdministrator`. If a search finds nothing, do not guess why — report it plainly as a verification failure in your report rather than assuming success.
+
+Do NOT run the Debug build's exe as part of this task (`dotnet run` or launching the exe directly) — the point of this task is to make that safe for the controller/human to do freely afterward, not to verify it here. Your verification is the manifest-content check above plus the build/test results.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add Torrid.App/app.dev.manifest Torrid.App/Torrid.App.csproj
+git commit -m "Use asInvoker manifest for Debug builds so dev iteration doesn't require elevation"
+```
