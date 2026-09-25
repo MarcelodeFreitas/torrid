@@ -771,7 +771,7 @@ public class SettingsViewModelTests
     }
 
     [Fact]
-    public void Apply_UncheckingVisible_AddsSensorIdToVisibleSensorIds()
+    public void Apply_UncheckingVisible_ExcludesThatSensorFromVisibilityOnly()
     {
         var config = new AppConfig();
         var viewModel = new SettingsViewModel(config, new[] { Cpu(), Gpu0Core() });
@@ -780,8 +780,12 @@ public class SettingsViewModelTests
         cpuRow.IsVisible = false;
         viewModel.Apply();
 
-        Assert.Contains("cpu", config.VisibleSensorIds);
-        Assert.DoesNotContain("gpu0-core", config.VisibleSensorIds);
+        // Verify through the actual public contract (SensorDisplay.IsVisible), not raw
+        // set membership — VisibleSensorIds stores the VISIBLE set when not all sensors
+        // are visible (see the Apply() note below), so asserting membership directly
+        // would silently invert if that internal representation ever changed.
+        Assert.False(SensorDisplay.IsVisible(config, "cpu"));
+        Assert.True(SensorDisplay.IsVisible(config, "gpu0-core"));
     }
 
     [Fact]
