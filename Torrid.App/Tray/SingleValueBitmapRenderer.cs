@@ -27,7 +27,7 @@ public sealed class SingleValueBitmapRenderer
 
             var (r, gC, b) = ColorPalette.ForZone(zone);
             using var brush = new SolidBrush(Color.FromArgb(r, gC, b));
-            using var font = new Font("Segoe UI", 13, System.Drawing.FontStyle.Bold);
+            using var font = new Font("Segoe UI", 16, System.Drawing.FontStyle.Bold);
             using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
             g.DrawString(FormatValueText(valueCelsius), font, brush, new RectangleF(0, 0, Size, Size), format);
         }

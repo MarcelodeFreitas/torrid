@@ -1,6 +1,7 @@
 namespace Torrid.App.Tray;
 
 using System.Windows;
+using System.Windows.Forms;
 using System.Windows.Threading;
 using Torrid.Core.Config;
 using Torrid.Core.Sensors;
@@ -11,6 +12,7 @@ public sealed class TrayIconGroupManager : IDisposable
     private readonly AppConfig _config;
     private readonly Dictionary<string, SensorTrayIcon> _icons = new();
     private readonly DispatcherTimer _blinkTimer;
+    private readonly ContextMenuStrip _contextMenu;
     private bool _blinkOn = true;
 
     public TrayIconGroupManager(ISensorSource sensorSource, AppConfig config)
@@ -18,16 +20,22 @@ public sealed class TrayIconGroupManager : IDisposable
         _sensorSource = sensorSource;
         _config = config;
 
+        _contextMenu = new ContextMenuStrip();
+        _contextMenu.Items.Add("Settings", null, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        _contextMenu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
+
         _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
         _blinkTimer.Tick += (_, _) => { _blinkOn = !_blinkOn; Redraw(); };
         _blinkTimer.Start();
 
-        _sensorSource.ReadingsUpdated += (_, _) => Application.Current?.Dispatcher.Invoke(Redraw);
+        _sensorSource.ReadingsUpdated += (_, _) => System.Windows.Application.Current?.Dispatcher.Invoke(Redraw);
 
         Redraw();
     }
 
     public event EventHandler? TrayIconClicked;
+    public event EventHandler? SettingsRequested;
+    public event EventHandler? ExitRequested;
 
     private void Redraw()
     {
@@ -48,6 +56,7 @@ public sealed class TrayIconGroupManager : IDisposable
             {
                 icon = new SensorTrayIcon();
                 icon.Clicked += (_, _) => TrayIconClicked?.Invoke(this, EventArgs.Empty);
+                icon.AttachContextMenu(_contextMenu);
                 _icons[reading.Id] = icon;
             }
 
@@ -63,5 +72,6 @@ public sealed class TrayIconGroupManager : IDisposable
         _blinkTimer.Stop();
         foreach (var icon in _icons.Values) icon.Dispose();
         _icons.Clear();
+        _contextMenu.Dispose();
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Configuration;
+using System.Configuration;
 using System.Data;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -17,9 +17,15 @@ public partial class App : System.Windows.Application
         var hr = SetCurrentProcessExplicitAppUserModelID(AppUserModelId);
         if (hr != 0) System.Diagnostics.Debug.WriteLine($"SetCurrentProcessExplicitAppUserModelID failed: 0x{hr:X8}");
         base.OnStartup(e);
+
+        var mainWindow = new MainWindow();
+        MainWindow = mainWindow;
+        if (!mainWindow.StartMinimizedToTray)
+        {
+            mainWindow.Show();
+        }
     }
 
     [DllImport("shell32.dll", SetLastError = true)]
     private static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
 }
-

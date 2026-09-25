@@ -18,6 +18,8 @@ public sealed class SensorTrayIcon : IDisposable
 
     public event EventHandler? Clicked;
 
+    public void AttachContextMenu(System.Windows.Forms.ContextMenuStrip menu) => _notifyIcon.ContextMenuStrip = menu;
+
     public void UpdateVisual(SensorReading reading, string label, ThresholdBand thresholds, bool blinkOn)
     {
         var icon = _renderer.Render(reading.ValueCelsius, thresholds, blinkOn);

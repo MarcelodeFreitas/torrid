@@ -1,5 +1,6 @@
 namespace Torrid.App;
 
+using System.ComponentModel;
 using System.Windows;
 using Torrid.App.Notifications;
 using Torrid.App.Tray;
@@ -16,6 +17,7 @@ public partial class MainWindow : Window
     private readonly SensorService _sensorSource;
     private readonly NotificationService _notificationService;
     private readonly TrayIconGroupManager _trayIconGroupManager;
+    private bool _isExiting;
 
     public MainWindow()
     {
@@ -34,8 +36,14 @@ public partial class MainWindow : Window
             WindowState = WindowState.Normal;
             Activate();
         };
+        _trayIconGroupManager.SettingsRequested += (_, _) => OpenSettings();
+        _trayIconGroupManager.ExitRequested += (_, _) =>
+        {
+            _isExiting = true;
+            System.Windows.Application.Current.Shutdown();
+        };
 
-        MouseRightButtonUp += (_, _) => OpenSettings();
+        Closing += OnClosing;
 
         _sensorSource.ReadingsUpdated += OnReadingsUpdatedForNotifications;
 
@@ -47,6 +55,15 @@ public partial class MainWindow : Window
             _sensorSource.Dispose();
             _trayIconGroupManager.Dispose();
         };
+    }
+
+    public bool StartMinimizedToTray => _config.StartMinimizedToTray;
+
+    private void OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (_isExiting) return;
+        e.Cancel = true;
+        Hide();
     }
 
     private void OnReadingsUpdatedForNotifications(object? sender, IReadOnlyList<Core.Models.SensorReading> readings)
