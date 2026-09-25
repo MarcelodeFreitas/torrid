@@ -1241,3 +1241,298 @@ A UAC prompt should appear automatically (this still requires human approval —
 - [ ] **Step 4: Report final state**
 
 No commit for this task (nothing new to check in — `publish/` output is already covered by the existing `.gitignore`'s `publish/` entry). Write a summary in your task report covering: the exact config.json contents observed in Step 1, confirmation the publish command succeeded and what files it produced, and confirmation (or an honest note if you couldn't get UAC approval) that the published exe self-elevates.
+
+---
+
+### Task 6: Tray context menu, start-minimized, close-to-tray, and tray icon legibility
+
+Added after trying the running app: right-clicking a tray icon did nothing (no context menu — the user expected one, referencing another app they use, PowerGenie, whose tray icon exposes "Settings"/"Exit"), the app always shows its window on launch regardless of `AppConfig.StartMinimizedToTray` (that field exists but was never wired to anything), and pressing the window's X button exits the whole app instead of minimizing to tray. The tray icon text was also reported as hard to read.
+
+**Files:**
+- Modify: `Torrid.App/App.xaml`
+- Modify: `Torrid.App/App.xaml.cs`
+- Modify: `Torrid.App/MainWindow.xaml.cs`
+- Modify: `Torrid.App/Tray/TrayIconGroupManager.cs`
+- Modify: `Torrid.App/Tray/SensorTrayIcon.cs`
+- Modify: `Torrid.App/Tray/SingleValueBitmapRenderer.cs`
+
+**Interfaces:**
+- Consumes: everything already built in Tasks 1-4.
+- Produces: `MainWindow.StartMinimizedToTray : bool` (read-only property, consumed by `App.xaml.cs`). `TrayIconGroupManager.{SettingsRequested, ExitRequested} : EventHandler?` (new events, alongside the existing `TrayIconClicked`).
+
+This task has no unit-testable pure logic — every change here is WPF/WinForms lifecycle wiring or a rendering constant. Verify by building and, if you can get human UAC approval, running the app.
+
+- [ ] **Step 1: Stop WPF from auto-showing the window, and let the app run without exiting when the window closes**
+
+Edit `Torrid.App/App.xaml` — remove the `StartupUri="MainWindow.xaml"` attribute and add `ShutdownMode="OnExplicitShutdown"` in its place:
+
+```xml
+<Application x:Class="Torrid.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Torrid.App"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+         
+    </Application.Resources>
+</Application>
+```
+
+Without a `StartupUri`, WPF no longer auto-creates and shows a window on launch — `App.xaml.cs`'s `OnStartup` must now do this explicitly (Step 2). `ShutdownMode="OnExplicitShutdown"` means the app keeps running even while no window is visible (e.g. minimized to tray) or during the moment between construction and `Show()` — only an explicit `Application.Current.Shutdown()` call (wired in Step 4, from the tray's "Exit" item) ends the process.
+
+- [ ] **Step 2: Construct MainWindow explicitly in App.xaml.cs, honoring StartMinimizedToTray**
+
+Replace `Torrid.App/App.xaml.cs` in full:
+
+```csharp
+using System.Configuration;
+using System.Data;
+using System.Runtime.InteropServices;
+using System.Windows;
+
+namespace Torrid.App;
+
+/// <summary>
+/// Interaction logic for App.xaml
+/// </summary>
+public partial class App : System.Windows.Application
+{
+    private const string AppUserModelId = "Torrid.App";
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        var hr = SetCurrentProcessExplicitAppUserModelID(AppUserModelId);
+        if (hr != 0) System.Diagnostics.Debug.WriteLine($"SetCurrentProcessExplicitAppUserModelID failed: 0x{hr:X8}");
+        base.OnStartup(e);
+
+        var mainWindow = new MainWindow();
+        MainWindow = mainWindow;
+        if (!mainWindow.StartMinimizedToTray)
+        {
+            mainWindow.Show();
+        }
+    }
+
+    [DllImport("shell32.dll", SetLastError = true)]
+    private static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
+}
+```
+
+`MainWindow = mainWindow;` assigns the inherited `Application.MainWindow` property (a `System.Windows.Window`) — unrelated to, and not shadowed by, the `Torrid.App.MainWindow` class name used a few characters earlier in `new MainWindow()`; both resolve correctly because one is a type position and the other is a property-assignment position.
+
+- [ ] **Step 3: Add the `StartMinimizedToTray` property, close-to-tray behavior, and tray menu wiring to MainWindow**
+
+Modify `Torrid.App/MainWindow.xaml.cs` — replace the file in full:
+
+```csharp
+namespace Torrid.App;
+
+using System.ComponentModel;
+using System.Windows;
+using Torrid.App.Notifications;
+using Torrid.App.Tray;
+using Torrid.App.ViewModels;
+using Torrid.Core.Config;
+using Torrid.Core.Notifications;
+using Torrid.Core.Sensors;
+using Torrid.Core.Time;
+
+public partial class MainWindow : Window
+{
+    private readonly IConfigStore _configStore = new JsonConfigStore();
+    private readonly AppConfig _config;
+    private readonly SensorService _sensorSource;
+    private readonly NotificationService _notificationService;
+    private readonly TrayIconGroupManager _trayIconGroupManager;
+    private bool _isExiting;
+
+    public MainWindow()
+    {
+        InitializeComponent();
+
+        _config = _configStore.Load();
+        _sensorSource = new SensorService(_config.PollIntervalMs);
+        _notificationService = new NotificationService(new WindowsToastNotifier(), new SystemClock(), _config.NotificationRefireMinutes);
+
+        DataContext = new MainWindowViewModel(_sensorSource, _config);
+
+        _trayIconGroupManager = new TrayIconGroupManager(_sensorSource, _config);
+        _trayIconGroupManager.TrayIconClicked += (_, _) =>
+        {
+            Show();
+            WindowState = WindowState.Normal;
+            Activate();
+        };
+        _trayIconGroupManager.SettingsRequested += (_, _) => OpenSettings();
+        _trayIconGroupManager.ExitRequested += (_, _) =>
+        {
+            _isExiting = true;
+            System.Windows.Application.Current.Shutdown();
+        };
+
+        Closing += OnClosing;
+
+        _sensorSource.ReadingsUpdated += OnReadingsUpdatedForNotifications;
+
+        _sensorSource.Start();
+
+        Closed += (_, _) =>
+        {
+            _sensorSource.Stop();
+            _sensorSource.Dispose();
+            _trayIconGroupManager.Dispose();
+        };
+    }
+
+    public bool StartMinimizedToTray => _config.StartMinimizedToTray;
+
+    private void OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (_isExiting) return;
+        e.Cancel = true;
+        Hide();
+    }
+
+    private void OnReadingsUpdatedForNotifications(object? sender, IReadOnlyList<Core.Models.SensorReading> readings)
+    {
+        var notifiable = readings.Where(r => Core.Config.SensorDisplay.NotificationsEnabled(_config, r.Id)).ToList();
+        _notificationService.Evaluate(notifiable, _config.Thresholds);
+    }
+
+    private void OpenSettings()
+    {
+        var settings = new SettingsWindow(_config, _sensorSource.CurrentReadings, _configStore, newPollIntervalMs => _sensorSource.PollIntervalMs = newPollIntervalMs)
+        {
+            Owner = this,
+        };
+        settings.ShowDialog();
+    }
+}
+```
+
+This drops the previous `MouseRightButtonUp += (_, _) => OpenSettings();` line entirely — Settings is now reached only through the tray's right-click menu (Step 4), which is more discoverable and matches the convention the user pointed to (PowerGenie). The `Closing`/`_isExiting` pair means: the X button (or any programmatic `Close()`) just hides the window unless `_isExiting` was explicitly set first by the tray's "Exit" path — this is the standard WPF minimize-to-tray pattern, and it correctly keeps the SAME `MainWindow` instance alive so `TrayIconClicked`'s `Show()` reopens the real, already-running window rather than reconstructing the whole composition root (sensor service, tray icons, config) from scratch.
+
+- [ ] **Step 4: Add the tray context menu to `TrayIconGroupManager` and `SensorTrayIcon`**
+
+Modify `Torrid.App/Tray/TrayIconGroupManager.cs` — replace the file in full:
+
+```csharp
+namespace Torrid.App.Tray;
+
+using System.Windows;
+using System.Windows.Forms;
+using System.Windows.Threading;
+using Torrid.Core.Config;
+using Torrid.Core.Sensors;
+
+public sealed class TrayIconGroupManager : IDisposable
+{
+    private readonly ISensorSource _sensorSource;
+    private readonly AppConfig _config;
+    private readonly Dictionary<string, SensorTrayIcon> _icons = new();
+    private readonly DispatcherTimer _blinkTimer;
+    private readonly ContextMenuStrip _contextMenu;
+    private bool _blinkOn = true;
+
+    public TrayIconGroupManager(ISensorSource sensorSource, AppConfig config)
+    {
+        _sensorSource = sensorSource;
+        _config = config;
+
+        _contextMenu = new ContextMenuStrip();
+        _contextMenu.Items.Add("Settings", null, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        _contextMenu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
+
+        _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+        _blinkTimer.Tick += (_, _) => { _blinkOn = !_blinkOn; Redraw(); };
+        _blinkTimer.Start();
+
+        _sensorSource.ReadingsUpdated += (_, _) => Application.Current?.Dispatcher.Invoke(Redraw);
+
+        Redraw();
+    }
+
+    public event EventHandler? TrayIconClicked;
+    public event EventHandler? SettingsRequested;
+    public event EventHandler? ExitRequested;
+
+    private void Redraw()
+    {
+        var visibleReadings = _sensorSource.CurrentReadings
+            .Where(r => SensorDisplay.IsVisible(_config, r.Id))
+            .ToList();
+        var visibleIds = visibleReadings.Select(r => r.Id).ToHashSet();
+
+        foreach (var staleId in _icons.Keys.Except(visibleIds).ToList())
+        {
+            _icons[staleId].Dispose();
+            _icons.Remove(staleId);
+        }
+
+        foreach (var reading in visibleReadings)
+        {
+            if (!_icons.TryGetValue(reading.Id, out var icon))
+            {
+                icon = new SensorTrayIcon();
+                icon.Clicked += (_, _) => TrayIconClicked?.Invoke(this, EventArgs.Empty);
+                icon.AttachContextMenu(_contextMenu);
+                _icons[reading.Id] = icon;
+            }
+
+            if (_config.Thresholds.TryGetValue(reading.Kind, out var band))
+            {
+                icon.UpdateVisual(reading, SensorDisplay.ResolveLabel(_config, reading), band, _blinkOn);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _blinkTimer.Stop();
+        foreach (var icon in _icons.Values) icon.Dispose();
+        _icons.Clear();
+        _contextMenu.Dispose();
+    }
+}
+```
+
+One `ContextMenuStrip` instance is built once and shared across every `SensorTrayIcon` — right-clicking ANY sensor's tray icon shows the same Settings/Exit menu, which is the simplest correct behavior (there's no per-sensor menu content).
+
+Modify `Torrid.App/Tray/SensorTrayIcon.cs` — add this method to the class (anywhere inside the class body, e.g. right after the constructor):
+
+```csharp
+    public void AttachContextMenu(System.Windows.Forms.ContextMenuStrip menu) => _notifyIcon.ContextMenuStrip = menu;
+```
+
+- [ ] **Step 5: Bump tray icon font size for legibility**
+
+Modify `Torrid.App/Tray/SingleValueBitmapRenderer.cs` — in the `Render` method, change:
+
+```csharp
+            using var font = new Font("Segoe UI", 13, System.Drawing.FontStyle.Bold);
+```
+
+to:
+
+```csharp
+            using var font = new Font("Segoe UI", 16, System.Drawing.FontStyle.Bold);
+```
+
+The Windows shell downsizes a 32×32 source icon to the tray's actual on-screen size (16–24px depending on DPI scaling), so a larger, bolder glyph in the source bitmap reads more clearly after that downscale. This is a starting adjustment, not a final tuned value — note in your task report that further DPI-specific tuning may need another round of visual feedback, the same way Phase 1's plan already flagged this as an area needing manual iteration.
+
+- [ ] **Step 6: Build and manually verify**
+
+Run: `& "C:\Program Files\dotnet\dotnet.exe" build Torrid.sln`
+Expected: Build succeeded, 0 errors.
+
+Run: `& "C:\Program Files\dotnet\dotnet.exe" test Torrid.sln`
+Expected: all existing tests still pass (this task adds no new tests, so the count should be unchanged from Task 4's 61).
+
+Run the app elevated (requires human UAC approval — you likely cannot get this yourself; say so plainly and rely on the build/tests instead if so). If you can get approval, confirm: the app starts with NO window visible when `StartMinimizedToTray` is `true` (the default) — only tray icons appear; right-clicking any tray icon shows a "Settings"/"Exit" menu; "Settings" opens the Settings window; clicking the window's X button hides it (window disappears, tray icons keep updating, process keeps running — check Task Manager or that a subsequent tray-icon left-click still reopens the SAME window with intact state) rather than exiting; only the tray's "Exit" item actually terminates the process.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add Torrid.App/App.xaml Torrid.App/App.xaml.cs Torrid.App/MainWindow.xaml.cs Torrid.App/Tray/TrayIconGroupManager.cs Torrid.App/Tray/SensorTrayIcon.cs Torrid.App/Tray/SingleValueBitmapRenderer.cs
+git commit -m "Add tray context menu (Settings/Exit), start-minimized-to-tray, close-to-tray, larger tray icon text"
+```
