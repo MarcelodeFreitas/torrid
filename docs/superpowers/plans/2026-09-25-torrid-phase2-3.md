@@ -1536,3 +1536,226 @@ Run the app elevated (requires human UAC approval — you likely cannot get this
 git add Torrid.App/App.xaml Torrid.App/App.xaml.cs Torrid.App/MainWindow.xaml.cs Torrid.App/Tray/TrayIconGroupManager.cs Torrid.App/Tray/SensorTrayIcon.cs Torrid.App/Tray/SingleValueBitmapRenderer.cs
 git commit -m "Add tray context menu (Settings/Exit), start-minimized-to-tray, close-to-tray, larger tray icon text"
 ```
+
+---
+
+### Task 7: Fix tray icon text fitting, restyle windows to plain system-native look
+
+Two more rounds of user feedback after trying the app with Task 6's changes:
+
+1. **Regression from Task 6 Step 5:** bumping the tray icon font from 13pt to 16pt broke rendering — reported as "numbers are wrongly displayed now" with a screenshot showing what look like single, truncated digits in the tray instead of full two-digit values. A fixed font size with no fit-checking is fragile against digit count (2-digit values today, but also `"--"` for unavailable, and in principle 3-digit values above 99°C) — this must become self-fitting, not another guessed constant.
+2. **UI feedback:** "the ui is still bare and ugly cant you make it more similar to power genie." The user pointed at `C:\Users\pc\Documents\GitHub\power-genie` as their visual reference. That app uses **zero custom styling** — no theme colors, no custom fonts, no window chrome changes, just plain default WPF controls on the system's default light background, with simple `Grid`/`StackPanel` layout and modest margins (`Margin="12"` on root containers, `Margin="0,8,0,0"`/`"0,16,0,0"` between sections). Torrid's `MainWindow`/`SettingsWindow` currently hardcode a dark theme (`Background="#1E1E1E"`, `Foreground="White"` on every label) that has nothing to do with either app's actual requirements — match PowerGenie's plain-native-Windows convention: remove the custom dark theme entirely, let windows render with default system colors. Do NOT remove the color-coded temperature VALUE text (blue/green/yellow/red) — that coloring is a core functional requirement from `PROJECT_PLAN.md` section 3, not decoration, and has nothing to do with the dark-vs-light chrome question.
+
+**Files:**
+- Modify: `Torrid.App/Tray/SingleValueBitmapRenderer.cs`
+- Modify: `Torrid.App/MainWindow.xaml`
+- Modify: `Torrid.App/SettingsWindow.xaml`
+
+**Interfaces:**
+- Consumes: nothing new. Modifies existing rendering/XAML only — no public signatures change.
+- Produces: nothing new consumed by later tasks (this is the last task in the plan).
+
+This task has no new unit-testable pure logic (the font-fitting logic depends on `System.Drawing.Graphics` text measurement, which needs a live GDI+ graphics context and isn't meaningfully fakeable — verify by building and, if you can get human UAC approval, running and visually inspecting both the tray icons and the windows).
+
+- [ ] **Step 1: Make the tray icon font self-fitting instead of a fixed guessed size**
+
+Modify `Torrid.App/Tray/SingleValueBitmapRenderer.cs` — replace the file in full:
+
+```csharp
+namespace Torrid.App.Tray;
+
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using Torrid.Core.Config;
+
+public sealed class SingleValueBitmapRenderer
+{
+    private const int Size = 32;
+    private const int TextMargin = 2;
+
+    public Icon Render(double? valueCelsius, ThresholdBand thresholds, bool blinkOn)
+    {
+        var zone = ResolveZone(valueCelsius, thresholds);
+        var isRed = zone == ColorZone.Red;
+        var text = FormatValueText(valueCelsius);
+
+        using var bitmap = new Bitmap(Size, Size);
+        using (var g = Graphics.FromImage(bitmap))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            g.Clear(Color.Transparent);
+
+            if (isRed && !blinkOn)
+            {
+                using var dimBrush = new SolidBrush(Color.FromArgb(70, 244, 67, 54));
+                g.FillEllipse(dimBrush, 0, 0, Size, Size);
+            }
+
+            var (r, gC, b) = ColorPalette.ForZone(zone);
+            using var brush = new SolidBrush(Color.FromArgb(r, gC, b));
+            using var font = CreateFittingFont(g, text, Size - TextMargin * 2, Size - TextMargin * 2);
+            using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            g.DrawString(text, font, brush, new RectangleF(0, 0, Size, Size), format);
+        }
+
+        var handle = bitmap.GetHicon();
+        return Icon.FromHandle(handle);
+    }
+
+    public static string FormatValueText(double? valueCelsius) =>
+        valueCelsius is double v ? $"{v:F0}" : "--";
+
+    public static ColorZone ResolveZone(double? valueCelsius, ThresholdBand thresholds) =>
+        valueCelsius is double v ? ColorThresholdEvaluator.GetColor(v, thresholds) : ColorZone.Blue;
+
+    private static Font CreateFittingFont(Graphics g, string text, float maxWidth, float maxHeight)
+    {
+        for (var size = 16; size >= 8; size--)
+        {
+            var candidate = new Font("Segoe UI", size, FontStyle.Bold);
+            var measured = g.MeasureString(text, candidate);
+            if (measured.Width <= maxWidth && measured.Height <= maxHeight)
+            {
+                return candidate;
+            }
+            candidate.Dispose();
+        }
+
+        return new Font("Segoe UI", 8, FontStyle.Bold);
+    }
+}
+```
+
+This starts at the same 16pt the user asked for last round and only shrinks when the actual measured text (via `Graphics.MeasureString`, not a guess) would overflow a 28×28 safe area inside the 32×32 icon — so `"--"` or a single digit still renders at the larger, more legible size, while `"100"` or any wider text automatically steps down until it fits, instead of silently clipping. `TextRenderingHint.AntiAliasGridFit` was also missing before (only shape smoothing was enabled, not text smoothing) — this alone measurably improves small-text legibility and may have contributed to the "wrongly displayed" complaint independent of the sizing issue.
+
+- [ ] **Step 2: Strip the dark theme from MainWindow, keep the functional color-coded values**
+
+Modify `Torrid.App/MainWindow.xaml` — replace the file in full:
+
+```xml
+<Window x:Class="Torrid.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:Torrid.App.Converters"
+        Title="Torrid" Height="340" Width="360">
+    <Window.Resources>
+        <conv:ColorZoneToBrushConverter x:Key="ZoneToBrush"/>
+    </Window.Resources>
+    <ItemsControl ItemsSource="{Binding Rows}" Margin="12">
+        <ItemsControl.ItemTemplate>
+            <DataTemplate>
+                <Grid Margin="0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding DisplayValue}" FontSize="20" FontWeight="Bold"
+                               Foreground="{Binding Zone, Converter={StaticResource ZoneToBrush}}"/>
+                </Grid>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
+</Window>
+```
+
+Removed `Background="#1E1E1E"` from the `Window` (so it renders with the system default light background and default title bar — already standard chrome, no `WindowStyle`/`AllowsTransparency` overrides existed to begin with) and `Foreground="White"` from the label `TextBlock` (so it renders in the system default text color instead of white-on-nothing, which would be invisible against a light background). The value `TextBlock`'s `Foreground` binding through `ZoneToBrush` is UNCHANGED — the blue/green/yellow/red temperature coloring stays exactly as before, since that's functional, not part of the dark-theme chrome being removed. Margins reduced slightly (`16`→`12` root, `6`→`4` per-row) to match PowerGenie's more modest spacing convention.
+
+- [ ] **Step 3: Strip the dark theme from SettingsWindow, keep the functional threshold-band accent colors**
+
+Modify `Torrid.App/SettingsWindow.xaml` — replace the file in full:
+
+```xml
+<Window x:Class="Torrid.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Torrid Settings" Height="520" Width="480"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Text="Poll interval (ms):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBox Name="PollIntervalTextBox" Width="80" Text="{Binding PollIntervalMs, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Text="Notification refire (min, 0=never):" VerticalAlignment="Center" Margin="16,0,8,0"/>
+            <TextBox Name="RefireTextBox" Width="60" Text="{Binding NotificationRefireMinutes, UpdateSourceTrigger=PropertyChanged}"/>
+        </StackPanel>
+
+        <TabControl Grid.Row="1">
+            <TabItem Header="Sensors">
+                <ItemsControl ItemsSource="{Binding SensorRows}" Margin="8">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="0,8">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DefaultLabel}" FontWeight="Bold"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <CheckBox Content="Visible" IsChecked="{Binding IsVisible}" Margin="0,0,12,0"/>
+                                        <CheckBox Content="Notify" IsChecked="{Binding NotificationsEnabled}" Margin="0,0,12,0"/>
+                                        <TextBlock Text="Label:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding CustomLabel, UpdateSourceTrigger=PropertyChanged}" Width="140"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </TabItem>
+            <TabItem Header="Thresholds">
+                <ItemsControl ItemsSource="{Binding ThresholdRows}" Margin="8">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="0,8">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Kind}" FontWeight="Bold"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <TextBlock Text="Blue &lt;" Foreground="#2B6CB0" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding BlueMax, UpdateSourceTrigger=PropertyChanged}" Width="50" Margin="0,0,12,0"/>
+                                        <TextBlock Text="Green &lt;" Foreground="#2F855A" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding GreenMax, UpdateSourceTrigger=PropertyChanged}" Width="50" Margin="0,0,12,0"/>
+                                        <TextBlock Text="Yellow &lt;=" Foreground="#B7791F" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBox Text="{Binding YellowMax, UpdateSourceTrigger=PropertyChanged}" Width="50"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </TabItem>
+        </TabControl>
+
+        <CheckBox Grid.Row="2" Content="Start minimized to tray" IsChecked="{Binding StartMinimizedToTray}" Margin="0,12,0,0"/>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Name="SaveButton" Content="Save" Width="80" Margin="0,0,8,0" Click="OnSaveClick"/>
+            <Button Name="CancelButton" Content="Cancel" Width="80" Click="OnCancelClick"/>
+        </StackPanel>
+    </Grid>
+</Window>
+```
+
+Every hardcoded `Background="#1E1E1E"` (on the `Window` and the `TabControl`) and `Foreground="White"` is removed, letting all of it render with default system light-theme colors and the standard title bar — matching PowerGenie's "no custom chrome at all" convention. The border color between rows changed from a dark-theme gray (`#3A3A3A`) to a light-theme-appropriate one (`#DDDDDD`), and the Blue/Green/Yellow threshold-band accent colors were darkened slightly (`#429CF5`→`#2B6CB0`, `#4CAF50`→`#2F855A`, `#FFC107`→`#B7791F`) so they stay legible as text on a white background instead of the original values, which were tuned for a dark background — the intent (identify which numeric field is which threshold) is unchanged, only the exact hex values shift for contrast on light.
+
+- [ ] **Step 4: Build and manually verify**
+
+Run: `& "C:\Program Files\dotnet\dotnet.exe" build Torrid.sln`
+Expected: Build succeeded, 0 errors.
+
+Run: `& "C:\Program Files\dotnet\dotnet.exe" test Torrid.sln`
+Expected: all existing tests still pass (this task adds no new tests, count unchanged).
+
+Run the app elevated (requires human UAC approval — you likely cannot get this yourself; say so plainly and rely on the build/tests instead if so). If you can get approval, confirm: tray icons show fully-legible two-digit numbers with no visible clipping; the main window has a plain white/system background with standard title bar, readable default-colored labels, and colored (blue/green/yellow/red) temperature values exactly as before; the Settings window matches the same plain-background convention with legible threshold accent-colored labels.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add Torrid.App/Tray/SingleValueBitmapRenderer.cs Torrid.App/MainWindow.xaml Torrid.App/SettingsWindow.xaml
+git commit -m "Fix tray icon text clipping with self-fitting font; restyle windows to plain system-native look"
+```
