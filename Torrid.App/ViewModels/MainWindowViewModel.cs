@@ -22,16 +22,34 @@ public sealed class MainWindowViewModel
 
     public ObservableCollection<SensorRowViewModel> Rows { get; } = new();
 
-    private void OnReadingsUpdated(object? sender, IReadOnlyList<SensorReading> readings) =>
-        Application.Current?.Dispatcher.Invoke(() => Apply(readings));
+    private void OnReadingsUpdated(object? sender, IReadOnlyList<SensorReading> readings)
+    {
+        if (Application.Current is null)
+        {
+            Apply(readings);
+        }
+        else
+        {
+            Application.Current.Dispatcher.Invoke(() => Apply(readings));
+        }
+    }
 
     private void Apply(IReadOnlyList<SensorReading> readings)
     {
+        var visibleIds = new HashSet<string>();
+
         foreach (var reading in readings)
         {
+            if (!SensorDisplay.IsVisible(_config, reading.Id))
+            {
+                continue;
+            }
+
+            visibleIds.Add(reading.Id);
+
             if (!_rowsById.TryGetValue(reading.Id, out var row))
             {
-                row = new SensorRowViewModel(reading.Label);
+                row = new SensorRowViewModel(SensorDisplay.ResolveLabel(_config, reading));
                 _rowsById[reading.Id] = row;
                 Rows.Add(row);
             }
@@ -40,6 +58,12 @@ public sealed class MainWindowViewModel
             {
                 row.Update(reading.ValueCelsius, band);
             }
+        }
+
+        foreach (var staleId in _rowsById.Keys.Except(visibleIds).ToList())
+        {
+            Rows.Remove(_rowsById[staleId]);
+            _rowsById.Remove(staleId);
         }
     }
 }
