@@ -1,29 +1,55 @@
 namespace Torrid.App;
 
 using System.Windows;
-using Torrid.App.Sensors;
+using Torrid.App.Notifications;
 using Torrid.App.Tray;
 using Torrid.App.ViewModels;
 using Torrid.Core.Config;
+using Torrid.Core.Notifications;
+using Torrid.Core.Sensors;
+using Torrid.Core.Time;
 
 public partial class MainWindow : Window
 {
-    private readonly FakeSensorSource _sensorSource = new();
-    private readonly TrayIconManager _trayIconManager;
+    private readonly IConfigStore _configStore = new JsonConfigStore();
+    private readonly AppConfig _config;
+    private readonly SensorService _sensorSource;
+    private readonly NotificationService _notificationService;
+    private readonly TrayIconGroupManager _trayIconGroupManager;
 
     public MainWindow()
     {
         InitializeComponent();
-        var config = new AppConfig();
-        DataContext = new MainWindowViewModel(_sensorSource, config);
-        _trayIconManager = new TrayIconManager(_sensorSource, config);
-        _trayIconManager.TrayIconClicked += (_, _) =>
+
+        _config = _configStore.Load();
+        _sensorSource = new SensorService(_config.PollIntervalMs);
+        _notificationService = new NotificationService(new WindowsToastNotifier(), new SystemClock(), _config.NotificationRefireMinutes);
+
+        DataContext = new MainWindowViewModel(_sensorSource, _config);
+
+        _trayIconGroupManager = new TrayIconGroupManager(_sensorSource, _config);
+        _trayIconGroupManager.TrayIconClicked += (_, _) =>
         {
             Show();
             WindowState = WindowState.Normal;
             Activate();
         };
+
+        _sensorSource.ReadingsUpdated += OnReadingsUpdatedForNotifications;
+
         _sensorSource.Start();
-        Closed += (_, _) => { _sensorSource.Stop(); _trayIconManager.Dispose(); };
+
+        Closed += (_, _) =>
+        {
+            _sensorSource.Stop();
+            _sensorSource.Dispose();
+            _trayIconGroupManager.Dispose();
+        };
+    }
+
+    private void OnReadingsUpdatedForNotifications(object? sender, IReadOnlyList<Core.Models.SensorReading> readings)
+    {
+        var notifiable = readings.Where(r => Core.Config.SensorDisplay.NotificationsEnabled(_config, r.Id)).ToList();
+        _notificationService.Evaluate(notifiable, _config.Thresholds);
     }
 }
