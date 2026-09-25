@@ -35,6 +35,8 @@ public partial class MainWindow : Window
             Activate();
         };
 
+        MouseRightButtonUp += (_, _) => OpenSettings();
+
         _sensorSource.ReadingsUpdated += OnReadingsUpdatedForNotifications;
 
         _sensorSource.Start();
@@ -51,5 +53,14 @@ public partial class MainWindow : Window
     {
         var notifiable = readings.Where(r => Core.Config.SensorDisplay.NotificationsEnabled(_config, r.Id)).ToList();
         _notificationService.Evaluate(notifiable, _config.Thresholds);
+    }
+
+    private void OpenSettings()
+    {
+        var settings = new SettingsWindow(_config, _sensorSource.CurrentReadings, _configStore, newPollIntervalMs => _sensorSource.PollIntervalMs = newPollIntervalMs)
+        {
+            Owner = this,
+        };
+        settings.ShowDialog();
     }
 }
