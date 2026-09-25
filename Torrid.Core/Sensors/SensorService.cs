@@ -22,6 +22,12 @@ public sealed class SensorService : ISensorSource, IDisposable
 
     public IReadOnlyList<SensorReading> CurrentReadings { get; private set; } = Array.Empty<SensorReading>();
 
+    public int PollIntervalMs
+    {
+        get => (int)_timer.Interval;
+        set => _timer.Interval = Math.Max(1, value);
+    }
+
     public event EventHandler<IReadOnlyList<SensorReading>>? ReadingsUpdated;
 
     public void Start() => _timer.Start();
