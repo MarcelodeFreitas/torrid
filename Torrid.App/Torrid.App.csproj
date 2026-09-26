@@ -17,6 +17,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest Condition="'$(Configuration)' == 'Debug'">app.dev.manifest</ApplicationManifest>
     <ApplicationManifest Condition="'$(Configuration)' != 'Debug'">app.manifest</ApplicationManifest>
+    <PublishDir>..\publish\</PublishDir>
   </PropertyGroup>
 
 </Project>
