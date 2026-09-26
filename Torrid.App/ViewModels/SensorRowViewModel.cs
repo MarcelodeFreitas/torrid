@@ -8,9 +8,15 @@ public sealed class SensorRowViewModel : INotifyPropertyChanged
     private string _displayValue = "--";
     private ColorZone _zone = ColorZone.Blue;
 
-    public SensorRowViewModel(string label) => Label = label;
+    public SensorRowViewModel(string label, string deviceName)
+    {
+        Label = label;
+        DeviceName = deviceName;
+    }
 
     public string Label { get; }
+
+    public string DeviceName { get; }
 
     public string DisplayValue
     {

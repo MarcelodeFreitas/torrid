@@ -66,4 +66,19 @@ public class MainWindowViewModelTests
         Assert.Single(viewModel.Rows);
         Assert.Equal("CPU", viewModel.Rows.Single().Label);
     }
+
+    [Fact]
+    public void Apply_SetsDeviceNameFromGpuIndex()
+    {
+        var source = new FakeSensorSourceForTests();
+        var config = new AppConfig();
+        var viewModel = new MainWindowViewModel(source, config);
+
+        source.Publish(new[] { Cpu(), Gpu0Core() });
+
+        var cpuRow = viewModel.Rows.Single(r => r.Label == "CPU");
+        var gpuRow = viewModel.Rows.Single(r => r.Label == "GPU0 Core");
+        Assert.Equal("CPU", cpuRow.DeviceName);
+        Assert.Equal("GPU 0", gpuRow.DeviceName);
+    }
 }

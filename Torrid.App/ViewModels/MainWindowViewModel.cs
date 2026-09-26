@@ -49,7 +49,7 @@ public sealed class MainWindowViewModel
 
             if (!_rowsById.TryGetValue(reading.Id, out var row))
             {
-                row = new SensorRowViewModel(SensorDisplay.ResolveLabel(_config, reading));
+                row = new SensorRowViewModel(SensorDisplay.ResolveLabel(_config, reading), DeviceNameFor(reading));
                 _rowsById[reading.Id] = row;
                 Rows.Add(row);
             }
@@ -66,4 +66,7 @@ public sealed class MainWindowViewModel
             _rowsById.Remove(staleId);
         }
     }
+
+    private static string DeviceNameFor(SensorReading reading) =>
+        reading.GpuIndex is int index ? $"GPU {index}" : "CPU";
 }

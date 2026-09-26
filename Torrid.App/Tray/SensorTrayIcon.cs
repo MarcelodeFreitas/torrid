@@ -13,7 +13,13 @@ public sealed class SensorTrayIcon : IDisposable
     public SensorTrayIcon()
     {
         _notifyIcon = new NotifyIcon { Visible = true };
-        _notifyIcon.Click += (_, _) => Clicked?.Invoke(this, EventArgs.Empty);
+        _notifyIcon.MouseUp += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                Clicked?.Invoke(this, EventArgs.Empty);
+            }
+        };
     }
 
     public event EventHandler? Clicked;
