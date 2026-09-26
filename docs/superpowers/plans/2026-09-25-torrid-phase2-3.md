@@ -1852,19 +1852,19 @@ git commit -m "Use asInvoker manifest for Debug builds so dev iteration doesn't 
 
 ---
 
-### Task 9: Fix tray right-click bug, group MainWindow by device, bigger numbers
+### Task 9: Fix tray right-click bug, add DeviceName grouping infrastructure
 
-Three more rounds of feedback after trying the restyled app:
+**Superseded scope note:** this task originally also redesigned `MainWindow.xaml` directly (device-grouped flat list, bigger numbers, content-sized window). That redesign is now folded into a larger follow-up plan (merging `MainWindow`/`SettingsWindow` into one FanControl-inspired app shell, per subsequent user feedback) instead of being built twice. This task keeps only the parts that are genuinely reusable regardless of that larger redesign: the tray right-click bug fix (independent of window architecture) and the `DeviceName` grouping property (useful for grouping sensor cards by device in whatever view ends up displaying them).
+
+Two rounds of feedback after trying the restyled app:
 
 1. **Real bug:** right-clicking a tray icon was observed to also open the main window, not just show the Settings/Exit menu. This is a well-known WinForms `NotifyIcon` gotcha — its `Click` event fires for ANY mouse button (left or right), not just left, regardless of a `ContextMenuStrip` also being attached. `SensorTrayIcon` currently wires `Clicked` off `Click`, so a right-click fires both the context menu AND the "show window" behavior. The fix is to use `MouseUp` and filter to `MouseButtons.Left` explicitly.
-2. **"can we make the numbers bigger?"** — the MainWindow's temperature values are the app's core glanceable readout; increase their size.
-3. **"the window with live temps need to be improved aesthetically and functionally"** (the user confirmed keeping two separate windows — Settings stays a separate popup, only `MainWindow` needs work): group rows by device (a "CPU" header, then a "GPU 0" header, etc. — using `SensorReading.GpuIndex`, already available, `null` = CPU) instead of one flat list, and size the window to fit its actual content instead of leaving a large empty area below 4 rows (today's fixed `Height="340"` was sized for the original always-visible-7-rows Phase 1 design; both content and Settings' visibility toggle can now make the real row count vary a lot).
+2. Groundwork for grouping sensor rows by device (a "CPU" vs "GPU 0" vs "GPU 1" distinction) using `SensorReading.GpuIndex`, already available — needed by whatever view ends up showing grouped sensor cards.
 
 **Files:**
 - Modify: `Torrid.App/Tray/SensorTrayIcon.cs`
 - Modify: `Torrid.App/ViewModels/SensorRowViewModel.cs`
 - Modify: `Torrid.App/ViewModels/MainWindowViewModel.cs`
-- Modify: `Torrid.App/MainWindow.xaml`
 - Test: `Torrid.Tests/MainWindowViewModelTests.cs` (add one test for device grouping)
 
 **Interfaces:**
@@ -1970,79 +1970,14 @@ Expected: PASS, 4/4 (3 existing from Task 2 + this new one).
 Run: `& "C:\Program Files\dotnet\dotnet.exe" test Torrid.sln`
 Expected: PASS, all tests (61 before this task + 1 new = 62).
 
-- [ ] **Step 8: Commit the view model changes**
-
-```bash
-git add Torrid.App/Tray/SensorTrayIcon.cs Torrid.App/ViewModels/SensorRowViewModel.cs Torrid.App/ViewModels/MainWindowViewModel.cs Torrid.Tests/MainWindowViewModelTests.cs
-git commit -m "Fix tray right-click also triggering window-open; add DeviceName for grouping"
-```
-
-- [ ] **Step 9: Redesign MainWindow.xaml — device-grouped rows, bigger values, content-sized window**
-
-Replace `Torrid.App/MainWindow.xaml` in full:
-
-```xml
-<Window x:Class="Torrid.App.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:conv="clr-namespace:Torrid.App.Converters"
-        Title="Torrid" Width="340" SizeToContent="Height" MinHeight="120">
-    <Window.Resources>
-        <conv:ColorZoneToBrushConverter x:Key="ZoneToBrush"/>
-        <CollectionViewSource x:Key="GroupedRows" Source="{Binding Rows}">
-            <CollectionViewSource.GroupDescriptions>
-                <PropertyGroupDescription PropertyName="DeviceName"/>
-            </CollectionViewSource.GroupDescriptions>
-        </CollectionViewSource>
-    </Window.Resources>
-    <ItemsControl ItemsSource="{Binding Source={StaticResource GroupedRows}}" Margin="14">
-        <ItemsControl.GroupStyle>
-            <GroupStyle>
-                <GroupStyle.HeaderTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13"
-                                   Foreground="#777777" Margin="0,10,0,2"/>
-                    </DataTemplate>
-                </GroupStyle.HeaderTemplate>
-            </GroupStyle>
-        </ItemsControl.GroupStyle>
-        <ItemsControl.ItemTemplate>
-            <DataTemplate>
-                <Grid Margin="0,3">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="15" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="1" Text="{Binding DisplayValue}" FontSize="30" FontWeight="Bold"
-                               Foreground="{Binding Zone, Converter={StaticResource ZoneToBrush}}"/>
-                </Grid>
-            </DataTemplate>
-        </ItemsControl.ItemTemplate>
-    </ItemsControl>
-</Window>
-```
-
-Notes on what changed and why:
-- `Title`/`Width` kept, but the fixed `Height="340"` is replaced with `SizeToContent="Height"` plus a `MinHeight="120"` floor — the window now grows or shrinks to fit however many sensor rows are actually visible (which varies once Settings can hide sensors), instead of always reserving space for a fixed row count.
-- `CollectionViewSource` with a `PropertyGroupDescription` on the new `DeviceName` groups rows by device automatically and stays in sync with the underlying `ObservableCollection<SensorRowViewModel>` (including the existing add/remove-on-visibility-change behavior from Task 2) — WPF's collection views track `ObservableCollection` changes without any extra wiring.
-- `GroupStyle.HeaderTemplate` renders a small bold gray label ("CPU", "GPU 0", "GPU 1", ...) above each device's rows.
-- The value `FontSize` goes from `20` to `30` (bigger numbers, per feedback); the label `FontSize` goes from `14` to `15` to stay visually balanced against the larger value. The `Foreground="{Binding Zone, Converter={StaticResource ZoneToBrush}}"` binding on the value — the functional color-coding — is unchanged.
-- Root `Margin` increased slightly (`12`→`14`) and per-row `Margin` reduced (`0,4`→`0,3`) since group headers now provide most of the vertical rhythm between sections.
-
-- [ ] **Step 10: Build and manually verify**
+- [ ] **Step 8: Build, verify, and commit**
 
 Run: `& "C:\Program Files\dotnet\dotnet.exe" build Torrid.sln`
 Expected: Build succeeded, 0 errors.
 
-Run: `& "C:\Program Files\dotnet\dotnet.exe" test Torrid.sln`
-Expected: 62/62 passing.
-
-If Task 8 has already landed by the time you do this task, use the now-non-elevated Debug build to verify without needing UAC approval: run `& "C:\Program Files\dotnet\dotnet.exe" run --project Torrid.App` directly and confirm you can launch, observe, and close it yourself without any elevation prompt. If Task 8 has NOT landed yet (tasks in this plan execute in order, so this shouldn't normally happen), fall back to the elevated-launch-requires-human-approval note used by every earlier task. Confirm: right-clicking a tray icon shows ONLY the Settings/Exit menu (the main window does not also pop up); the main window shows a "CPU" section header above the CPU row, and a "GPU 0" header above that GPU's three rows (and "GPU 1", etc. if more are present); temperature values are visibly larger and still colored blue/green/yellow/red; the window's height roughly matches its content instead of leaving a large empty area.
-
-- [ ] **Step 11: Commit**
+If Task 8 (non-elevated Debug builds) has already landed, use it to manually confirm the bug fix without needing UAC approval: `& "C:\Program Files\dotnet\dotnet.exe" run --project Torrid.App`, right-click a tray icon, confirm ONLY the Settings/Exit menu appears (the main window does not also pop up), then left-click and confirm the window still opens as before. Close it yourself when done (Task 8 means you can now do this without asking a human). If Task 8 has NOT landed yet, fall back to the elevated-launch-requires-human-approval note used by every earlier task.
 
 ```bash
-git add Torrid.App/MainWindow.xaml
-git commit -m "Group MainWindow rows by device, enlarge temperature values, size window to content"
+git add Torrid.App/Tray/SensorTrayIcon.cs Torrid.App/ViewModels/SensorRowViewModel.cs Torrid.App/ViewModels/MainWindowViewModel.cs Torrid.Tests/MainWindowViewModelTests.cs
+git commit -m "Fix tray right-click also triggering window-open; add DeviceName for grouping"
 ```
