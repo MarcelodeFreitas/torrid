@@ -14,6 +14,7 @@ public sealed class TrayIconGroupManager : IDisposable
     private readonly DispatcherTimer _blinkTimer;
     private readonly ContextMenuStrip _contextMenu;
     private bool _blinkOn = true;
+    private bool _anyRed;
 
     public TrayIconGroupManager(ISensorSource sensorSource, AppConfig config)
     {
@@ -25,7 +26,14 @@ public sealed class TrayIconGroupManager : IDisposable
         _contextMenu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
 
         _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
-        _blinkTimer.Tick += (_, _) => { _blinkOn = !_blinkOn; Redraw(); };
+        _blinkTimer.Tick += (_, _) =>
+        {
+            _blinkOn = !_blinkOn;
+            if (_anyRed)
+            {
+                Redraw();
+            }
+        };
         _blinkTimer.Start();
 
         _sensorSource.ReadingsUpdated += (_, _) => System.Windows.Application.Current?.Dispatcher.Invoke(Redraw);
@@ -43,6 +51,11 @@ public sealed class TrayIconGroupManager : IDisposable
             .Where(r => SensorDisplay.IsVisible(_config, r.Id))
             .ToList();
         var visibleIds = visibleReadings.Select(r => r.Id).ToHashSet();
+
+        _anyRed = visibleReadings.Any(r =>
+            r.ValueCelsius is double v &&
+            _config.Thresholds.TryGetValue(r.Kind, out var band) &&
+            ColorThresholdEvaluator.GetColor(v, band) == ColorZone.Red);
 
         foreach (var staleId in _icons.Keys.Except(visibleIds).ToList())
         {
