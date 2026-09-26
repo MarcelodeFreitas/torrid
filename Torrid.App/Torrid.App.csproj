@@ -15,7 +15,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="'$(Configuration)' == 'Debug'">app.dev.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="'$(Configuration)' != 'Debug'">app.manifest</ApplicationManifest>
   </PropertyGroup>
 
 </Project>
