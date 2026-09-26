@@ -1981,3 +1981,136 @@ If Task 8 (non-elevated Debug builds) has already landed, use it to manually con
 git add Torrid.App/Tray/SensorTrayIcon.cs Torrid.App/ViewModels/SensorRowViewModel.cs Torrid.App/ViewModels/MainWindowViewModel.cs Torrid.Tests/MainWindowViewModelTests.cs
 git commit -m "Fix tray right-click also triggering window-open; add DeviceName for grouping"
 ```
+
+---
+
+### Task 10: Stop redrawing tray icons every 600ms when nothing is red
+
+User asked about Torrid's CPU/resource usage while running in the background, referencing FanControl (whose source turned out to be closed, so this is a general efficiency fix, not a ported implementation).
+
+Real, self-inflicted inefficiency from Task 6: `TrayIconGroupManager`'s blink timer ticks every 600ms and unconditionally calls `Redraw()` — which rebuilds every visible tray icon's bitmap (GDI+ `Bitmap`/`Graphics`/`Font` allocation, `GetHicon()`, native handle destroy/replace) — regardless of whether any sensor is actually in the red zone. Since the real sensor poll interval is 2000ms by default, this means icons are being fully rebuilt roughly 3x more often than sensor data even changes, forever, even when the app is sitting idle with everything green. The blink visual only matters when something is red; when nothing is, the 600ms tick should be a no-op.
+
+**Files:**
+- Modify: `Torrid.App/Tray/TrayIconGroupManager.cs`
+
+**Interfaces:**
+- Consumes: nothing new.
+- Produces: nothing new consumed elsewhere — internal efficiency fix only.
+
+No new tests — this is the same class of WPF/WinForms timer-and-GDI+ wiring code as the rest of this file, which has no direct unit tests by established precedent (verify by building and, since Task 8 landed, running the now-non-elevated Debug build yourself).
+
+- [ ] **Step 1: Track whether anything is currently red, and skip blink-driven redraws when nothing is**
+
+Modify `Torrid.App/Tray/TrayIconGroupManager.cs` — replace the file in full:
+
+```csharp
+namespace Torrid.App.Tray;
+
+using System.Windows;
+using System.Windows.Forms;
+using System.Windows.Threading;
+using Torrid.Core.Config;
+using Torrid.Core.Sensors;
+
+public sealed class TrayIconGroupManager : IDisposable
+{
+    private readonly ISensorSource _sensorSource;
+    private readonly AppConfig _config;
+    private readonly Dictionary<string, SensorTrayIcon> _icons = new();
+    private readonly DispatcherTimer _blinkTimer;
+    private readonly ContextMenuStrip _contextMenu;
+    private bool _blinkOn = true;
+    private bool _anyRed;
+
+    public TrayIconGroupManager(ISensorSource sensorSource, AppConfig config)
+    {
+        _sensorSource = sensorSource;
+        _config = config;
+
+        _contextMenu = new ContextMenuStrip();
+        _contextMenu.Items.Add("Settings", null, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        _contextMenu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
+
+        _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+        _blinkTimer.Tick += (_, _) =>
+        {
+            _blinkOn = !_blinkOn;
+            if (_anyRed)
+            {
+                Redraw();
+            }
+        };
+        _blinkTimer.Start();
+
+        _sensorSource.ReadingsUpdated += (_, _) => System.Windows.Application.Current?.Dispatcher.Invoke(Redraw);
+
+        Redraw();
+    }
+
+    public event EventHandler? TrayIconClicked;
+    public event EventHandler? SettingsRequested;
+    public event EventHandler? ExitRequested;
+
+    private void Redraw()
+    {
+        var visibleReadings = _sensorSource.CurrentReadings
+            .Where(r => SensorDisplay.IsVisible(_config, r.Id))
+            .ToList();
+        var visibleIds = visibleReadings.Select(r => r.Id).ToHashSet();
+
+        _anyRed = visibleReadings.Any(r =>
+            r.ValueCelsius is double v &&
+            _config.Thresholds.TryGetValue(r.Kind, out var band) &&
+            ColorThresholdEvaluator.GetColor(v, band) == ColorZone.Red);
+
+        foreach (var staleId in _icons.Keys.Except(visibleIds).ToList())
+        {
+            _icons[staleId].Dispose();
+            _icons.Remove(staleId);
+        }
+
+        foreach (var reading in visibleReadings)
+        {
+            if (!_icons.TryGetValue(reading.Id, out var icon))
+            {
+                icon = new SensorTrayIcon();
+                icon.Clicked += (_, _) => TrayIconClicked?.Invoke(this, EventArgs.Empty);
+                icon.AttachContextMenu(_contextMenu);
+                _icons[reading.Id] = icon;
+            }
+
+            if (_config.Thresholds.TryGetValue(reading.Kind, out var band))
+            {
+                icon.UpdateVisual(reading, SensorDisplay.ResolveLabel(_config, reading), band, _blinkOn);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _blinkTimer.Stop();
+        foreach (var icon in _icons.Values) icon.Dispose();
+        _icons.Clear();
+        _contextMenu.Dispose();
+    }
+}
+```
+
+What changed: a new `_anyRed` field is computed once per `Redraw()` call (from the same visibility-filtered reading list `Redraw` already builds — no extra enumeration of `CurrentReadings`), and the blink timer's tick handler only calls `Redraw()` when `_anyRed` is true. Real sensor updates (via `ReadingsUpdated`, on the actual poll interval) always still call `Redraw()` unconditionally — that path is unaffected, so icons still update promptly when values genuinely change or a sensor newly enters/leaves the red zone. Only the blink timer's *additional*, purely-cosmetic 600ms tick is now skipped while nothing is red.
+
+- [ ] **Step 2: Build and manually verify**
+
+Run: `& "C:\Program Files\dotnet\dotnet.exe" build Torrid.sln`
+Expected: Build succeeded, 0 errors.
+
+Run: `& "C:\Program Files\dotnet\dotnet.exe" test Torrid.sln`
+Expected: all existing tests still pass (this task adds none, count unchanged from whatever Task 9 left it at).
+
+Since Task 8 landed, run the app yourself without elevation: `& "C:\Program Files\dotnet\dotnet.exe" run --project Torrid.App`. Confirm tray icons still update normally when values change (they should, since real updates aren't gated by `_anyRed`), and that behavior when a sensor IS red (blinking) is unchanged from before. There is no visible difference to confirm for the "nothing is red" case — the fix is about *how often* GDI+ work happens internally, not a visible behavior change — so note in your report that you couldn't visually distinguish "fixed" from "unfixed" idle CPU usage without profiling, and that's expected; the build+code-correctness is the real verification here. Close the app yourself when done (non-elevated, so this works cleanly now).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add Torrid.App/Tray/TrayIconGroupManager.cs
+git commit -m "Skip blink-driven tray icon redraws when nothing is in the red zone"
+```
