@@ -103,6 +103,22 @@ public class SettingsViewModelTests
     }
 
     [Fact]
+    public void Apply_PreservesConfigForSensorsNotCurrentlyDetected()
+    {
+        var config = new AppConfig
+        {
+            CustomLabels = { ["gpu1-core"] = "EVGA Core" },
+            NotificationDisabledSensorIds = { "gpu1-core" },
+        };
+        var viewModel = new SettingsViewModel(config, new[] { Cpu() });
+
+        viewModel.Apply();
+
+        Assert.Equal("EVGA Core", config.CustomLabels["gpu1-core"]);
+        Assert.Contains("gpu1-core", config.NotificationDisabledSensorIds);
+    }
+
+    [Fact]
     public void Apply_WritesEditedThresholdBandBackToConfig()
     {
         var config = new AppConfig();

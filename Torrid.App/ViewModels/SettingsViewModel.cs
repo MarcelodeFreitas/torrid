@@ -49,22 +49,35 @@ public sealed class SettingsViewModel
         _config.NotificationRefireMinutes = NotificationRefireMinutes;
         _config.StartMinimizedToTray = StartMinimizedToTray;
 
+        var currentSensorIds = SensorRows.Select(r => r.SensorId).ToHashSet();
+
+        var preservedVisibleIds = _config.VisibleSensorIds.Where(id => !currentSensorIds.Contains(id)).ToList();
         _config.VisibleSensorIds.Clear();
         if (!SensorRows.All(r => r.IsVisible))
         {
+            foreach (var id in preservedVisibleIds)
+            {
+                _config.VisibleSensorIds.Add(id);
+            }
             foreach (var row in SensorRows.Where(r => r.IsVisible))
             {
                 _config.VisibleSensorIds.Add(row.SensorId);
             }
         }
 
-        _config.CustomLabels.Clear();
+        foreach (var id in currentSensorIds)
+        {
+            _config.CustomLabels.Remove(id);
+        }
         foreach (var row in SensorRows.Where(r => !string.IsNullOrWhiteSpace(r.CustomLabel)))
         {
             _config.CustomLabels[row.SensorId] = row.CustomLabel;
         }
 
-        _config.NotificationDisabledSensorIds.Clear();
+        foreach (var id in currentSensorIds)
+        {
+            _config.NotificationDisabledSensorIds.Remove(id);
+        }
         foreach (var row in SensorRows.Where(r => !r.NotificationsEnabled))
         {
             _config.NotificationDisabledSensorIds.Add(row.SensorId);

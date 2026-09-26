@@ -31,8 +31,12 @@ public sealed class SingleValueBitmapRenderer
 
             var (r, gC, b) = ColorPalette.ForZone(zone);
             using var brush = new SolidBrush(Color.FromArgb(r, gC, b));
-            using var font = CreateFittingFont(g, text, Size - TextMargin * 2, Size - TextMargin * 2);
-            using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            using var format = new StringFormat(StringFormat.GenericTypographic)
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+            };
+            using var font = CreateFittingFont(g, text, format, Size - TextMargin * 2, Size - TextMargin * 2);
             g.DrawString(text, font, brush, new RectangleF(0, 0, Size, Size), format);
         }
 
@@ -46,12 +50,12 @@ public sealed class SingleValueBitmapRenderer
     public static ColorZone ResolveZone(double? valueCelsius, ThresholdBand thresholds) =>
         valueCelsius is double v ? ColorThresholdEvaluator.GetColor(v, thresholds) : ColorZone.Blue;
 
-    private static Font CreateFittingFont(Graphics g, string text, float maxWidth, float maxHeight)
+    private static Font CreateFittingFont(Graphics g, string text, StringFormat format, float maxWidth, float maxHeight)
     {
         for (var size = 16; size >= 8; size--)
         {
             var candidate = new Font("Segoe UI", size, FontStyle.Bold);
-            var measured = g.MeasureString(text, candidate);
+            var measured = g.MeasureString(text, candidate, PointF.Empty, format);
             if (measured.Width <= maxWidth && measured.Height <= maxHeight)
             {
                 return candidate;

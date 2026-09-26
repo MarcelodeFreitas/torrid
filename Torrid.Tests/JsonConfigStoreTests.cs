@@ -95,6 +95,18 @@ public class JsonConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_WhenCustomLabelsAndNotificationDisabledSensorIdsAreNull_ReplacesWithEmptyCollections()
+    {
+        File.WriteAllText(_path, "{\"CustomLabels\": null, \"NotificationDisabledSensorIds\": null}");
+        var store = new JsonConfigStore(_path);
+
+        var config = store.Load();
+
+        Assert.NotNull(config.CustomLabels);
+        Assert.NotNull(config.NotificationDisabledSensorIds);
+    }
+
+    [Fact]
     public void SaveThenLoad_RoundTripsCustomValues()
     {
         var store = new JsonConfigStore(_path);

@@ -57,6 +57,8 @@ public sealed class JsonConfigStore : IConfigStore
         }
 
         config.VisibleSensorIds ??= new HashSet<string>();
+        config.CustomLabels ??= new Dictionary<string, string>();
+        config.NotificationDisabledSensorIds ??= new HashSet<string>();
 
         return config;
     }

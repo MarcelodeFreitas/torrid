@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
 
         _config = _configStore.Load();
         _sensorSource = new SensorService(_config.PollIntervalMs);
@@ -68,13 +69,20 @@ public partial class MainWindow : Window
 
     private void OnReadingsUpdatedForNotifications(object? sender, IReadOnlyList<Core.Models.SensorReading> readings)
     {
-        var notifiable = readings.Where(r => Core.Config.SensorDisplay.NotificationsEnabled(_config, r.Id)).ToList();
+        var notifiable = readings
+            .Where(r => Core.Config.SensorDisplay.NotificationsEnabled(_config, r.Id))
+            .Select(r => r with { Label = Core.Config.SensorDisplay.ResolveLabel(_config, r) })
+            .ToList();
         _notificationService.Evaluate(notifiable, _config.Thresholds);
     }
 
     private void OpenSettings()
     {
-        var settings = new SettingsWindow(_config, _sensorSource.CurrentReadings, _configStore, newPollIntervalMs => _sensorSource.PollIntervalMs = newPollIntervalMs)
+        var settings = new SettingsWindow(_config, _sensorSource.CurrentReadings, _configStore, newPollIntervalMs =>
+        {
+            _sensorSource.PollIntervalMs = newPollIntervalMs;
+            _notificationService.RefireMinutes = _config.NotificationRefireMinutes;
+        })
         {
             Owner = this,
         };
