@@ -1,5 +1,6 @@
 using Torrid.Core.Config;
 using Torrid.Core.Models;
+using Torrid.Core.Sensors;
 
 namespace Torrid.Tests;
 
@@ -133,6 +134,33 @@ public class JsonConfigStoreTests : IDisposable
 
         Assert.Equal(5000, loaded.PollIntervalMs);
         Assert.Equal(10, loaded.NotificationRefireMinutes);
+    }
+
+    [Fact]
+    public void AntiCheatSettings_RoundTripAndDefaultToPause()
+    {
+        var defaults = new JsonConfigStore(_path).Load();
+        Assert.Equal(AntiCheatBehavior.Pause, defaults.WhileAntiCheatActive);
+        Assert.Empty(defaults.ExtraProtectedProcesses);
+
+        var store = new JsonConfigStore(_path);
+        store.Save(new AppConfig { WhileAntiCheatActive = AntiCheatBehavior.GpuOnly, ExtraProtectedProcesses = new List<string> { "mygame" } });
+        var loaded = store.Load();
+
+        Assert.Equal(AntiCheatBehavior.GpuOnly, loaded.WhileAntiCheatActive);
+        Assert.Equal(new[] { "mygame" }, loaded.ExtraProtectedProcesses);
+        Assert.Contains("GpuOnly", File.ReadAllText(_path));
+    }
+
+    [Fact]
+    public void Load_NullExtraProcessesOrBogusBehavior_FallBackToSafeValues()
+    {
+        File.WriteAllText(_path, "{\"ExtraProtectedProcesses\": null, \"WhileAntiCheatActive\": 99}");
+
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.NotNull(config.ExtraProtectedProcesses);
+        Assert.Equal(AntiCheatBehavior.Pause, config.WhileAntiCheatActive);
     }
 
     public void Dispose()

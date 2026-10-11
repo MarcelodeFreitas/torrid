@@ -3,16 +3,27 @@ namespace Torrid.Core.Sensors;
 using LibreHardwareMonitor.Hardware;
 using Torrid.Core.Models;
 
-public sealed class SensorService : ISensorSource, IDisposable
+public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDisposable
 {
-    private readonly Computer _computer;
     private readonly System.Timers.Timer _timer;
     private readonly UpdateVisitor _visitor = new();
+    private readonly Func<AntiCheatBehavior> _behavior;
+    private readonly Func<IReadOnlyList<string>> _extraProcesses;
+    private readonly IProcessLister _processLister;
+    private readonly object _gate = new();
+    private Computer? _computer;
+    private HardwareAccessLevel? _openLevel;
+    private bool _disposed;
 
-    public SensorService(int pollIntervalMs)
+    public SensorService(
+        int pollIntervalMs,
+        Func<AntiCheatBehavior>? behavior = null,
+        Func<IReadOnlyList<string>>? extraProcesses = null,
+        IProcessLister? processLister = null)
     {
-        _computer = new Computer { IsCpuEnabled = true, IsGpuEnabled = true };
-        _computer.Open();
+        _behavior = behavior ?? (() => AntiCheatBehavior.Pause);
+        _extraProcesses = extraProcesses ?? (() => Array.Empty<string>());
+        _processLister = processLister ?? new SystemProcessLister();
 
         _timer = new System.Timers.Timer(pollIntervalMs) { AutoReset = false };
         _timer.Elapsed += (_, _) => PollAndReschedule();
@@ -22,6 +33,8 @@ public sealed class SensorService : ISensorSource, IDisposable
 
     public IReadOnlyList<SensorReading> CurrentReadings { get; private set; } = Array.Empty<SensorReading>();
 
+    public HardwareStatus Status { get; private set; } = HardwareStatus.FullAccess;
+
     public int PollIntervalMs
     {
         get => (int)_timer.Interval;
@@ -29,6 +42,8 @@ public sealed class SensorService : ISensorSource, IDisposable
     }
 
     public event EventHandler<IReadOnlyList<SensorReading>>? ReadingsUpdated;
+
+    public event EventHandler? StatusChanged;
 
     public void Start() => _timer.Start();
 
@@ -42,26 +57,72 @@ public sealed class SensorService : ISensorSource, IDisposable
         }
         finally
         {
-            _timer.Start();
+            if (!_disposed) _timer.Start();
         }
     }
 
     private void Poll()
     {
-        try
+        IReadOnlyList<SensorReading> readings;
+        var statusChanged = false;
+
+        lock (_gate)
         {
-            _computer.Accept(_visitor);
-            var snapshot = _computer.Hardware.Select(ToSnapshot).ToList();
-            var readings = SensorReadingBuilder.Build(snapshot);
+            if (_disposed) return;
+
+            try
+            {
+                // Policy first: an already-running anti-cheat means the hardware (and its driver) is never opened.
+                var status = HardwareAccessPolicy.Evaluate(
+                    _behavior(), _processLister.GetRunningProcessNames(), _extraProcesses());
+                statusChanged = !Equals(status, Status);
+                Status = status;
+
+                EnsureComputerFor(status.Level);
+                readings = status.Level == HardwareAccessLevel.Paused
+                    ? SensorReadingBuilder.ToUnavailable(CurrentReadings)
+                    : ReadHardware(status.Level);
+            }
+            catch
+            {
+                readings = SensorReadingBuilder.ToUnavailable(CurrentReadings);
+            }
+
             CurrentReadings = readings;
-            ReadingsUpdated?.Invoke(this, readings);
         }
-        catch
-        {
-            var unavailable = SensorReadingBuilder.ToUnavailable(CurrentReadings);
-            CurrentReadings = unavailable;
-            ReadingsUpdated?.Invoke(this, unavailable);
-        }
+
+        // Raised outside the lock: handlers marshal to the UI thread and must never be able to deadlock Dispose().
+        if (statusChanged) StatusChanged?.Invoke(this, EventArgs.Empty);
+        ReadingsUpdated?.Invoke(this, readings);
+    }
+
+    private void EnsureComputerFor(HardwareAccessLevel level)
+    {
+        if (_openLevel == level) return;
+
+        CloseComputer();
+        if (level == HardwareAccessLevel.Paused) return;
+
+        var computer = new Computer { IsCpuEnabled = level == HardwareAccessLevel.Full, IsGpuEnabled = true };
+        computer.Open();
+        _computer = computer;
+        _openLevel = level;
+    }
+
+    private IReadOnlyList<SensorReading> ReadHardware(HardwareAccessLevel level)
+    {
+        _computer!.Accept(_visitor);
+        var readings = SensorReadingBuilder.Build(_computer.Hardware.Select(ToSnapshot).ToList());
+        return level == HardwareAccessLevel.GpuOnly ? SensorReadingBuilder.WithCpuPlaceholder(readings) : readings;
+    }
+
+    private void CloseComputer()
+    {
+        var computer = _computer;
+        _computer = null;
+        _openLevel = null;
+        try { computer?.Close(); }
+        catch { /* releasing hardware must never take the app down */ }
     }
 
     private static HardwareSnapshot ToSnapshot(IHardware hardware) => new(
@@ -72,9 +133,14 @@ public sealed class SensorService : ISensorSource, IDisposable
 
     public void Dispose()
     {
-        _timer.Stop();
-        _timer.Dispose();
-        _computer.Close();
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _timer.Stop();
+            _timer.Dispose();
+            CloseComputer();
+        }
     }
 
     private sealed class UpdateVisitor : IVisitor

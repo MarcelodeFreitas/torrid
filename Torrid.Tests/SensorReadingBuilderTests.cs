@@ -134,4 +134,28 @@ public class SensorReadingBuilderTests
         var vram = Assert.Single(readings, r => r.Id == "gpu0-vram");
         Assert.Equal("GPU Memory Junction", vram.SourceSensorName);
     }
+
+    [Fact]
+    public void WithCpuPlaceholder_InsertsUnavailableCpuFirstWhenMissing()
+    {
+        var gpu = new SensorReading("gpu0-hotspot", "GPU0 Hot", SensorKind.GpuHotSpot, 0, 51.0);
+
+        var readings = SensorReadingBuilder.WithCpuPlaceholder(new[] { gpu });
+
+        Assert.Equal(2, readings.Count);
+        Assert.Equal("cpu", readings[0].Id);
+        Assert.Null(readings[0].ValueCelsius);
+        Assert.Equal("gpu0-hotspot", readings[1].Id);
+    }
+
+    [Fact]
+    public void WithCpuPlaceholder_LeavesAnExistingCpuReadingAlone()
+    {
+        var cpu = new SensorReading("cpu", "CPU", SensorKind.CpuPackage, null, 60.0);
+
+        var readings = SensorReadingBuilder.WithCpuPlaceholder(new[] { cpu });
+
+        Assert.Single(readings);
+        Assert.Equal(60.0, readings[0].ValueCelsius);
+    }
 }

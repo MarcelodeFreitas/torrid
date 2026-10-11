@@ -45,4 +45,13 @@ public static class SensorReadingBuilder
 
     public static IReadOnlyList<SensorReading> ToUnavailable(IReadOnlyList<SensorReading> readings) =>
         readings.Select(r => r with { ValueCelsius = null }).ToList();
+
+    public static IReadOnlyList<SensorReading> WithCpuPlaceholder(IReadOnlyList<SensorReading> readings)
+    {
+        if (readings.Any(r => r.Id == "cpu")) return readings;
+
+        var list = new List<SensorReading> { new("cpu", "CPU", SensorKind.CpuPackage, null, null) };
+        list.AddRange(readings);
+        return list;
+    }
 }

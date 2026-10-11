@@ -1,6 +1,8 @@
 namespace Torrid.Core.Config;
 
+using System.Text.Json.Serialization;
 using Torrid.Core.Models;
+using Torrid.Core.Sensors;
 
 public sealed class AppConfig
 {
@@ -9,6 +11,11 @@ public sealed class AppConfig
     public int NotificationRefireMinutes { get; set; } = 0;
     public bool StartMinimizedToTray { get; set; } = true;
     public Dictionary<string, SensorPreference> Sensors { get; set; } = new();
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public AntiCheatBehavior WhileAntiCheatActive { get; set; } = AntiCheatBehavior.Pause;
+
+    public List<string> ExtraProtectedProcesses { get; set; } = new();
 
     public static Dictionary<SensorKind, ThresholdBand> DefaultThresholds() => new()
     {

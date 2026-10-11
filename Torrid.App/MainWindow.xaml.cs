@@ -25,7 +25,10 @@ public partial class MainWindow : Window
         new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
 
         _config = _configStore.Load();
-        _sensorSource = new SensorService(_config.PollIntervalMs);
+        _sensorSource = new SensorService(
+            _config.PollIntervalMs,
+            () => _config.WhileAntiCheatActive,
+            () => _config.ExtraProtectedProcesses);
         _notificationService = new NotificationService(new WindowsToastNotifier(), new SystemClock(), _config.NotificationRefireMinutes);
 
         DataContext = new MainWindowViewModel(_sensorSource, _config);

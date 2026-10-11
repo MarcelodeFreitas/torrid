@@ -1,6 +1,7 @@
 namespace Torrid.Core.Config;
 
 using System.Text.Json;
+using Torrid.Core.Sensors;
 
 public sealed class JsonConfigStore : IConfigStore
 {
@@ -60,6 +61,12 @@ public sealed class JsonConfigStore : IConfigStore
         foreach (var key in config.Sensors.Where(p => p.Value is null).Select(p => p.Key).ToList())
         {
             config.Sensors.Remove(key);
+        }
+
+        config.ExtraProtectedProcesses ??= new List<string>();
+        if (!Enum.IsDefined(config.WhileAntiCheatActive))
+        {
+            config.WhileAntiCheatActive = AntiCheatBehavior.Pause;
         }
 
         return config;
