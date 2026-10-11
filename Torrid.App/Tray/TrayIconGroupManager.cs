@@ -15,6 +15,7 @@ public sealed class TrayIconGroupManager : IDisposable
     private readonly ContextMenuStrip _contextMenu;
     private bool _blinkOn = true;
     private bool _anyRed;
+    private bool _disposed;
 
     public TrayIconGroupManager(ISensorSource sensorSource, AppConfig config)
     {
@@ -47,6 +48,9 @@ public sealed class TrayIconGroupManager : IDisposable
 
     private void Redraw()
     {
+        // A redraw posted from the poll thread can arrive after Dispose during shutdown.
+        if (_disposed) return;
+
         var visibleReadings = _sensorSource.CurrentReadings
             .Where(r => SensorDisplay.IsShownInTray(_config, r))
             .ToList();
@@ -82,6 +86,7 @@ public sealed class TrayIconGroupManager : IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
         _blinkTimer.Stop();
         foreach (var icon in _icons.Values) icon.Dispose();
         _icons.Clear();

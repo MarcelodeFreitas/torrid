@@ -1,16 +1,13 @@
-using System.Configuration;
-using System.Data;
 using System.Runtime.InteropServices;
 using System.Windows;
 
 namespace Torrid.App;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
 public partial class App : System.Windows.Application
 {
     private const string AppUserModelId = "Torrid.App";
+
+    private AppHost? _host;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -18,12 +15,24 @@ public partial class App : System.Windows.Application
         if (hr != 0) System.Diagnostics.Debug.WriteLine($"SetCurrentProcessExplicitAppUserModelID failed: 0x{hr:X8}");
         base.OnStartup(e);
 
-        var mainWindow = new MainWindow();
+        var options = StartupOptions.Parse(e.Args);
+        _host = new AppHost(options);
+
+        var mainWindow = new MainWindow { DataContext = _host.Shell };
         MainWindow = mainWindow;
-        if (!mainWindow.StartMinimizedToTray || e.Args.Contains("--show"))
+        _host.AttachWindow(mainWindow);
+        _host.Start();
+
+        if (options.ShowWindow || !_host.ConfigManager.Config.StartMinimizedToTray)
         {
-            mainWindow.Show();
+            _host.ShowMainWindow();
         }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _host?.Dispose();
+        base.OnExit(e);
     }
 
     [DllImport("shell32.dll", SetLastError = true)]

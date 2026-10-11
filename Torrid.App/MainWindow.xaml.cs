@@ -2,85 +2,45 @@ namespace Torrid.App;
 
 using System.ComponentModel;
 using System.Windows;
-using Torrid.App.Notifications;
-using Torrid.App.Tray;
-using Torrid.App.ViewModels;
-using Torrid.Core.Config;
-using Torrid.Core.Notifications;
-using Torrid.Core.Sensors;
-using Torrid.Core.Time;
+using System.Windows.Interop;
+using Torrid.App.Interop;
 
+/// <summary>The shell window. Composition lives in <see cref="AppHost"/>; this only handles window chrome and close-to-tray.</summary>
 public partial class MainWindow : Window
 {
-    private readonly IConfigStore _configStore = new JsonConfigStore();
-    private readonly AppConfig _config;
-    private readonly SensorService _sensorSource;
-    private readonly NotificationService _notificationService;
-    private readonly TrayIconGroupManager _trayIconGroupManager;
     private bool _isExiting;
 
     public MainWindow()
     {
         InitializeComponent();
-        new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
 
-        _config = _configStore.Load();
-        _sensorSource = new SensorService(
-            _config.PollIntervalMs,
-            () => _config.WhileAntiCheatActive,
-            () => _config.ExtraProtectedProcesses);
-        _notificationService = new NotificationService(new WindowsToastNotifier(), new SystemClock(), _config.NotificationRefireMinutes);
-
-        DataContext = new HomeViewModel(_sensorSource, _sensorSource, new ConfigManager(_configStore, _config));
-
-        _trayIconGroupManager = new TrayIconGroupManager(_sensorSource, _config);
-        _trayIconGroupManager.TrayIconClicked += (_, _) =>
-        {
-            Show();
-            WindowState = WindowState.Normal;
-            Activate();
-        };
-        _trayIconGroupManager.SettingsRequested += (_, _) =>
-        {
-            Show();
-            WindowState = WindowState.Normal;
-            Activate();
-        };
-        _trayIconGroupManager.ExitRequested += (_, _) =>
-        {
-            _isExiting = true;
-            System.Windows.Application.Current.Shutdown();
-        };
-
-        Closing += OnClosing;
-
-        _sensorSource.ReadingsUpdated += OnReadingsUpdatedForNotifications;
-
-        _sensorSource.Start();
-
-        Closed += (_, _) =>
-        {
-            _sensorSource.Stop();
-            _sensorSource.Dispose();
-            _trayIconGroupManager.Dispose();
-        };
+        // Create the HWND now (the window usually starts hidden in the tray) so the dark title bar is
+        // applied before the first Show and there is no white caption flash.
+        new WindowInteropHelper(this).EnsureHandle();
     }
 
-    public bool StartMinimizedToTray => _config.StartMinimizedToTray;
-
-    private void OnClosing(object? sender, CancelEventArgs e)
+    /// <summary>Really quits: closes the window instead of hiding it and shuts the application down.</summary>
+    public void ExitApplication()
     {
-        if (_isExiting) return;
-        e.Cancel = true;
-        Hide();
+        _isExiting = true;
+        System.Windows.Application.Current.Shutdown();
     }
 
-    private void OnReadingsUpdatedForNotifications(object? sender, IReadOnlyList<Core.Models.SensorReading> readings)
+    protected override void OnSourceInitialized(EventArgs e)
     {
-        var notifiable = readings
-            .Where(r => SensorDisplay.NotificationsEnabled(_config, r))
-            .Select(r => r with { Label = SensorDisplay.ResolveLabel(_config, r) })
-            .ToList();
-        _notificationService.Evaluate(notifiable, _config.Thresholds);
+        base.OnSourceInitialized(e);
+        DarkTitleBar.Apply(this);
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (!_isExiting)
+        {
+            // X hides to the tray; only the tray's Exit quits.
+            e.Cancel = true;
+            Hide();
+        }
+
+        base.OnClosing(e);
     }
 }

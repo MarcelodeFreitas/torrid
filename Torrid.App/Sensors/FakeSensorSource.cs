@@ -7,7 +7,9 @@ using Torrid.Core.Sensors;
 public sealed class FakeSensorSource : ISensorSource, IHardwareStatusSource
 {
     private readonly DispatcherTimer _timer;
-    private readonly Random _random = new();
+    // Fixed seed: demo screenshots start from the same values every run.
+    private readonly Random _random = new(7);
+    private HardwareStatus _status = HardwareStatus.FullAccess;
 
     public FakeSensorSource()
     {
@@ -18,12 +20,21 @@ public sealed class FakeSensorSource : ISensorSource, IHardwareStatusSource
 
     public IReadOnlyList<SensorReading> CurrentReadings { get; private set; }
 
-    public HardwareStatus Status { get; set; } = HardwareStatus.FullAccess;
+    public HardwareStatus Status
+    {
+        get => _status;
+        set
+        {
+            _status = value;
+            CurrentReadings = BuildReadings();
+            StatusChanged?.Invoke(this, EventArgs.Empty);
+            ReadingsUpdated?.Invoke(this, CurrentReadings);
+        }
+    }
 
     public event EventHandler<IReadOnlyList<SensorReading>>? ReadingsUpdated;
 
-    // The demo status never changes while running, so there is nothing to raise.
-    public event EventHandler? StatusChanged { add { } remove { } }
+    public event EventHandler? StatusChanged;
 
     public void Start() => _timer.Start();
 
@@ -42,13 +53,15 @@ public sealed class FakeSensorSource : ISensorSource, IHardwareStatusSource
 
         var readings = new List<SensorReading>
         {
-            new("cpu", "CPU", SensorKind.CpuPackage, null, NextValue(30, 95), CpuName, "Core (Tctl/Tdie)"),
-            new("gpu0-core", "GPU0 Core", SensorKind.GpuCore, 0, NextValue(30, 95), GpuName, "GPU Core"),
-            new("gpu0-hotspot", "GPU0 Hot", SensorKind.GpuHotSpot, 0, NextValue(40, 100), GpuName, "GPU Hot Spot"),
-            new("gpu0-vram", "GPU0 VRAM", SensorKind.GpuVram, 0, NextValue(40, 100), GpuName, "GPU Memory Junction"),
-            new("gpu1-core", "GPU1 Core", SensorKind.GpuCore, 1, NextValue(30, 95), GpuName, "GPU Core"),
-            new("gpu1-hotspot", "GPU1 Hot", SensorKind.GpuHotSpot, 1, NextValue(40, 100), GpuName, "GPU Hot Spot"),
-            new("gpu1-vram", "GPU1 VRAM", SensorKind.GpuVram, 1, NextValue(40, 100), GpuName, "GPU Memory Junction"),
+            // Values wander a little around fixed points so every colour zone except red is on screen
+            // (red would fire real toasts while demoing).
+            new("cpu", "CPU", SensorKind.CpuPackage, null, Around(57), CpuName, "Core (Tctl/Tdie)"),
+            new("gpu0-core", "GPU0 Core", SensorKind.GpuCore, 0, Around(66), GpuName, "GPU Core"),
+            new("gpu0-hotspot", "GPU0 Hot", SensorKind.GpuHotSpot, 0, Around(88), GpuName, "GPU Hot Spot"),
+            new("gpu0-vram", "GPU0 VRAM", SensorKind.GpuVram, 0, Around(80), GpuName, "GPU Memory Junction"),
+            new("gpu1-core", "GPU1 Core", SensorKind.GpuCore, 1, Around(36), GpuName, "GPU Core"),
+            new("gpu1-hotspot", "GPU1 Hot", SensorKind.GpuHotSpot, 1, Around(44), GpuName, "GPU Hot Spot"),
+            new("gpu1-vram", "GPU1 VRAM", SensorKind.GpuVram, 1, Around(48), GpuName, "GPU Memory Junction"),
         };
 
         return Status.Level == HardwareAccessLevel.Paused
@@ -56,5 +69,5 @@ public sealed class FakeSensorSource : ISensorSource, IHardwareStatusSource
             : readings;
     }
 
-    private double NextValue(double min, double max) => min + _random.NextDouble() * (max - min);
+    private double Around(double centre) => centre + (_random.NextDouble() - 0.5) * 3;
 }
