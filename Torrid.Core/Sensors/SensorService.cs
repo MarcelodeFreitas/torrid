@@ -13,7 +13,7 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
     private readonly object _gate = new();
     private Computer? _computer;
     private HardwareAccessLevel? _openLevel;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     public SensorService(
         int pollIntervalMs,
@@ -57,7 +57,14 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
         }
         finally
         {
-            if (!_disposed) _timer.Start();
+            try
+            {
+                if (!_disposed) _timer.Start();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Dispose() raced with this tick; nothing left to reschedule.
+            }
         }
     }
 
@@ -80,7 +87,7 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
 
                 EnsureComputerFor(status.Level);
                 readings = status.Level == HardwareAccessLevel.Paused
-                    ? SensorReadingBuilder.ToUnavailable(CurrentReadings)
+                    ? SensorReadingBuilder.WithCpuPlaceholder(SensorReadingBuilder.ToUnavailable(CurrentReadings))
                     : ReadHardware(status.Level);
             }
             catch
@@ -104,7 +111,16 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
         if (level == HardwareAccessLevel.Paused) return;
 
         var computer = new Computer { IsCpuEnabled = level == HardwareAccessLevel.Full, IsGpuEnabled = true };
-        computer.Open();
+        try
+        {
+            computer.Open();
+        }
+        catch
+        {
+            try { computer.Close(); } catch { /* best effort: don't leak a half-opened Computer */ }
+            throw;
+        }
+
         _computer = computer;
         _openLevel = level;
     }
