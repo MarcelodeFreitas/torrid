@@ -20,7 +20,7 @@ public partial class App : System.Windows.Application
 
         var mainWindow = new MainWindow();
         MainWindow = mainWindow;
-        if (!mainWindow.StartMinimizedToTray)
+        if (!mainWindow.StartMinimizedToTray || e.Args.Contains("--show"))
         {
             mainWindow.Show();
         }
