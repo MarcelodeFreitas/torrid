@@ -4,14 +4,30 @@ using Torrid.Core.Models;
 
 public static class SensorDisplay
 {
-    public static bool IsVisible(AppConfig config, string sensorId) =>
-        config.VisibleSensorIds.Count == 0 || config.VisibleSensorIds.Contains(sensorId);
+    public static bool IsShownInWindow(AppConfig config, SensorIdentity sensor) =>
+        Preference(config, sensor.Id)?.ShowInWindow ?? SensorDefaults.ShownInWindow(sensor.Kind);
+
+    public static bool IsShownInTray(AppConfig config, SensorIdentity sensor) =>
+        Preference(config, sensor.Id)?.ShowInTray ?? SensorDefaults.ShownInTray(sensor.Kind);
+
+    public static bool NotificationsEnabled(AppConfig config, SensorIdentity sensor) =>
+        Preference(config, sensor.Id)?.Notify ?? SensorDefaults.Notify(sensor.Kind);
+
+    public static string ResolveLabel(AppConfig config, SensorIdentity sensor) =>
+        Preference(config, sensor.Id)?.Label is { } label && !string.IsNullOrWhiteSpace(label) ? label : sensor.DefaultLabel;
+
+    public static bool IsShownInWindow(AppConfig config, SensorReading reading) =>
+        IsShownInWindow(config, SensorIdentity.FromReading(reading));
+
+    public static bool IsShownInTray(AppConfig config, SensorReading reading) =>
+        IsShownInTray(config, SensorIdentity.FromReading(reading));
+
+    public static bool NotificationsEnabled(AppConfig config, SensorReading reading) =>
+        NotificationsEnabled(config, SensorIdentity.FromReading(reading));
 
     public static string ResolveLabel(AppConfig config, SensorReading reading) =>
-        config.CustomLabels.TryGetValue(reading.Id, out var custom) && !string.IsNullOrWhiteSpace(custom)
-            ? custom
-            : reading.Label;
+        ResolveLabel(config, SensorIdentity.FromReading(reading));
 
-    public static bool NotificationsEnabled(AppConfig config, string sensorId) =>
-        !config.NotificationDisabledSensorIds.Contains(sensorId);
+    private static SensorPreference? Preference(AppConfig config, string sensorId) =>
+        config.Sensors.TryGetValue(sensorId, out var preference) ? preference : null;
 }

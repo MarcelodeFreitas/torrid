@@ -48,7 +48,7 @@ public sealed class TrayIconGroupManager : IDisposable
     private void Redraw()
     {
         var visibleReadings = _sensorSource.CurrentReadings
-            .Where(r => SensorDisplay.IsVisible(_config, r.Id))
+            .Where(r => SensorDisplay.IsShownInTray(_config, r))
             .ToList();
         var visibleIds = visibleReadings.Select(r => r.Id).ToHashSet();
 

@@ -24,12 +24,14 @@ public class MainWindowViewModelTests
 {
     private static SensorReading Cpu(double value = 50.0) => new("cpu", "CPU", SensorKind.CpuPackage, null, value);
     private static SensorReading Gpu0Core(double value = 50.0) => new("gpu0-core", "GPU0 Core", SensorKind.GpuCore, 0, value);
+    private static SensorReading Gpu0Hot(double value = 50.0) => new("gpu0-hotspot", "GPU0 Hot", SensorKind.GpuHotSpot, 0, value);
 
     [Fact]
     public void Apply_UsesCustomLabelWhenSet()
     {
         var source = new FakeSensorSourceForTests();
-        var config = new AppConfig { CustomLabels = { ["cpu"] = "5950X" } };
+        var config = new AppConfig();
+        config.Sensors["cpu"] = new SensorPreference { Label = "5950X" };
         var viewModel = new MainWindowViewModel(source, config);
 
         source.Publish(new[] { Cpu() });
@@ -38,10 +40,10 @@ public class MainWindowViewModelTests
     }
 
     [Fact]
-    public void Apply_WhenSensorNotVisible_DoesNotAddRow()
+    public void Apply_WhenSensorHiddenByDefault_DoesNotAddRow()
     {
         var source = new FakeSensorSourceForTests();
-        var config = new AppConfig { VisibleSensorIds = { "cpu" } };
+        var config = new AppConfig();
         var viewModel = new MainWindowViewModel(source, config);
 
         source.Publish(new[] { Cpu(), Gpu0Core() });
@@ -57,14 +59,15 @@ public class MainWindowViewModelTests
         var config = new AppConfig();
         var viewModel = new MainWindowViewModel(source, config);
 
+        SensorPreferences.Update(config, "gpu0-core", p => p.ShowInWindow = true);
         source.Publish(new[] { Cpu(), Gpu0Core() });
         Assert.Equal(2, viewModel.Rows.Count);
 
-        config.VisibleSensorIds.Add("cpu");
+        SensorPreferences.Update(config, "cpu", p => p.ShowInWindow = false);
         source.Publish(new[] { Cpu(), Gpu0Core() });
 
         Assert.Single(viewModel.Rows);
-        Assert.Equal("CPU", viewModel.Rows.Single().Label);
+        Assert.Equal("GPU0 Core", viewModel.Rows.Single().Label);
     }
 
     [Fact]
@@ -74,10 +77,10 @@ public class MainWindowViewModelTests
         var config = new AppConfig();
         var viewModel = new MainWindowViewModel(source, config);
 
-        source.Publish(new[] { Cpu(), Gpu0Core() });
+        source.Publish(new[] { Cpu(), Gpu0Hot() });
 
         var cpuRow = viewModel.Rows.Single(r => r.Label == "CPU");
-        var gpuRow = viewModel.Rows.Single(r => r.Label == "GPU0 Core");
+        var gpuRow = viewModel.Rows.Single(r => r.Label == "GPU0 Hot");
         Assert.Equal("CPU", cpuRow.DeviceName);
         Assert.Equal("GPU 0", gpuRow.DeviceName);
     }

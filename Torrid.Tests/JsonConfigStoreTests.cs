@@ -84,26 +84,42 @@ public class JsonConfigStoreTests : IDisposable
     }
 
     [Fact]
-    public void Load_WhenVisibleSensorIdsIsNull_ReplacesWithEmptySet()
+    public void Load_WhenSensorsIsNullOrHasNullEntries_NormalizesToUsableDictionary()
     {
-        File.WriteAllText(_path, "{ \"VisibleSensorIds\": null }");
-        var store = new JsonConfigStore(_path);
+        File.WriteAllText(_path, "{\"Sensors\": null}");
+        Assert.NotNull(new JsonConfigStore(_path).Load().Sensors);
 
-        var config = store.Load();
+        File.WriteAllText(_path, "{\"Sensors\": {\"cpu\": null, \"gpu0-vram\": {\"ShowInTray\": true}}}");
+        var config = new JsonConfigStore(_path).Load();
 
-        Assert.NotNull(config.VisibleSensorIds);
+        Assert.False(config.Sensors.ContainsKey("cpu"));
+        Assert.True(config.Sensors["gpu0-vram"].ShowInTray);
     }
 
     [Fact]
-    public void Load_WhenCustomLabelsAndNotificationDisabledSensorIdsAreNull_ReplacesWithEmptyCollections()
+    public void Load_OldSchemaFileStillLoads_IgnoringRemovedFields()
     {
-        File.WriteAllText(_path, "{\"CustomLabels\": null, \"NotificationDisabledSensorIds\": null}");
+        File.WriteAllText(_path, "{\"PollIntervalMs\": 3000, \"VisibleSensorIds\": [\"cpu\"], \"CustomLabels\": {\"cpu\": \"x\"}}");
+
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.Equal(3000, config.PollIntervalMs);
+        Assert.Empty(config.Sensors);
+    }
+
+    [Fact]
+    public void SaveThenLoad_RoundTripsSensorPreferences()
+    {
         var store = new JsonConfigStore(_path);
+        var config = new AppConfig();
+        config.Sensors["gpu0-core"] = new SensorPreference { Label = "MSI Core", ShowInWindow = true, Notify = false };
 
-        var config = store.Load();
+        store.Save(config);
+        var loaded = store.Load();
 
-        Assert.NotNull(config.CustomLabels);
-        Assert.NotNull(config.NotificationDisabledSensorIds);
+        Assert.Equal("MSI Core", loaded.Sensors["gpu0-core"].Label);
+        Assert.True(loaded.Sensors["gpu0-core"].ShowInWindow);
+        Assert.False(loaded.Sensors["gpu0-core"].Notify);
     }
 
     [Fact]

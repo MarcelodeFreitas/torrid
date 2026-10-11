@@ -40,7 +40,7 @@ public sealed class MainWindowViewModel
 
         foreach (var reading in readings)
         {
-            if (!SensorDisplay.IsVisible(_config, reading.Id))
+            if (!SensorDisplay.IsShownInWindow(_config, reading))
             {
                 continue;
             }

@@ -56,9 +56,11 @@ public sealed class JsonConfigStore : IConfigStore
             config.PollIntervalMs = MinimumPollIntervalMs;
         }
 
-        config.VisibleSensorIds ??= new HashSet<string>();
-        config.CustomLabels ??= new Dictionary<string, string>();
-        config.NotificationDisabledSensorIds ??= new HashSet<string>();
+        config.Sensors ??= new Dictionary<string, SensorPreference>();
+        foreach (var key in config.Sensors.Where(p => p.Value is null).Select(p => p.Key).ToList())
+        {
+            config.Sensors.Remove(key);
+        }
 
         return config;
     }

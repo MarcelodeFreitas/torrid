@@ -37,7 +37,12 @@ public partial class MainWindow : Window
             WindowState = WindowState.Normal;
             Activate();
         };
-        _trayIconGroupManager.SettingsRequested += (_, _) => OpenSettings();
+        _trayIconGroupManager.SettingsRequested += (_, _) =>
+        {
+            Show();
+            WindowState = WindowState.Normal;
+            Activate();
+        };
         _trayIconGroupManager.ExitRequested += (_, _) =>
         {
             _isExiting = true;
@@ -70,22 +75,9 @@ public partial class MainWindow : Window
     private void OnReadingsUpdatedForNotifications(object? sender, IReadOnlyList<Core.Models.SensorReading> readings)
     {
         var notifiable = readings
-            .Where(r => Core.Config.SensorDisplay.NotificationsEnabled(_config, r.Id))
-            .Select(r => r with { Label = Core.Config.SensorDisplay.ResolveLabel(_config, r) })
+            .Where(r => SensorDisplay.NotificationsEnabled(_config, r))
+            .Select(r => r with { Label = SensorDisplay.ResolveLabel(_config, r) })
             .ToList();
         _notificationService.Evaluate(notifiable, _config.Thresholds);
-    }
-
-    private void OpenSettings()
-    {
-        var settings = new SettingsWindow(_config, _sensorSource.CurrentReadings, _configStore, newPollIntervalMs =>
-        {
-            _sensorSource.PollIntervalMs = newPollIntervalMs;
-            _notificationService.RefireMinutes = _config.NotificationRefireMinutes;
-        })
-        {
-            Owner = this,
-        };
-        settings.ShowDialog();
     }
 }
