@@ -1,4 +1,5 @@
 using Torrid.App;
+using Torrid.App.ViewModels;
 
 namespace Torrid.Tests;
 
@@ -32,6 +33,35 @@ public class StartupOptionsTests
 
         Assert.True(options.Demo);
         Assert.True(options.DemoPaused);
+    }
+
+    [Theory]
+    [InlineData("Sensors", PageId.Sensors)]
+    [InlineData("thresholds", PageId.Thresholds)]
+    [InlineData("SETTINGS", PageId.Settings)]
+    [InlineData("home", PageId.Home)]
+    public void Page_IsParsedCaseInsensitively(string value, PageId expected)
+    {
+        Assert.Equal(expected, StartupOptions.Parse(new[] { "--show", "--page", value }).InitialPage);
+    }
+
+    [Theory]
+    [InlineData("Nowhere")]
+    [InlineData("2")]
+    [InlineData("")]
+    public void InvalidPage_IsIgnored(string value)
+    {
+        var options = StartupOptions.Parse(new[] { "--page", value, "--demo" });
+
+        Assert.Null(options.InitialPage);
+        Assert.True(options.Demo);
+    }
+
+    [Fact]
+    public void PageFlagWithoutValue_IsIgnored()
+    {
+        Assert.Null(StartupOptions.Parse(new[] { "--page" }).InitialPage);
+        Assert.Null(StartupOptions.Parse(Array.Empty<string>()).InitialPage);
     }
 
     [Fact]
