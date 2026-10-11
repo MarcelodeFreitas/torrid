@@ -9,6 +9,8 @@ public sealed class ConfigManager : IDisposable
     private readonly object _gate = new();
     private System.Threading.Timer? _timer;
     private bool _dirty;
+    private bool _disposed;
+    private volatile string? _lastSaveError;
 
     public ConfigManager(IConfigStore store, AppConfig? config = null, TimeSpan? saveDelay = null)
     {
@@ -19,15 +21,19 @@ public sealed class ConfigManager : IDisposable
 
     public AppConfig Config { get; }
 
-    public string? LastSaveError { get; private set; }
+    public string? LastSaveError => _lastSaveError;
 
     public event EventHandler? Changed;
 
     public void Update(Action<AppConfig> change)
     {
-        change(Config);
+        lock (_gate)
+        {
+            change(Config);
+            ScheduleSaveLocked();
+        }
+
         Changed?.Invoke(this, EventArgs.Empty);
-        ScheduleSave();
     }
 
     public void Flush()
@@ -41,22 +47,29 @@ public sealed class ConfigManager : IDisposable
         }
     }
 
-    public void Dispose() => Flush();
-
-    private void ScheduleSave()
+    public void Dispose()
     {
         lock (_gate)
         {
-            _dirty = true;
-            if (_saveDelay <= TimeSpan.Zero)
-            {
-                SaveLocked();
-                return;
-            }
-
-            _timer?.Dispose();
-            _timer = new System.Threading.Timer(_ => Flush(), null, _saveDelay, Timeout.InfiniteTimeSpan);
+            _disposed = true;
         }
+
+        Flush();
+    }
+
+    private void ScheduleSaveLocked()
+    {
+        _dirty = true;
+        if (_disposed) return;
+
+        if (_saveDelay <= TimeSpan.Zero)
+        {
+            SaveLocked();
+            return;
+        }
+
+        _timer?.Dispose();
+        _timer = new System.Threading.Timer(_ => Flush(), null, _saveDelay, Timeout.InfiniteTimeSpan);
     }
 
     private void SaveLocked()
@@ -64,15 +77,14 @@ public sealed class ConfigManager : IDisposable
         try
         {
             _store.Save(Config);
-            LastSaveError = null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            LastSaveError = ex.Message;
-        }
-        finally
-        {
+            _lastSaveError = null;
             _dirty = false;
+        }
+        catch (Exception ex)
+        {
+            // Never let a save failure escape (this can run on a timer pool thread).
+            // _dirty stays true so the next Flush/Update retries.
+            _lastSaveError = ex.Message;
         }
     }
 }

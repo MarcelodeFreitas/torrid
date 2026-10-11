@@ -38,6 +38,8 @@ public class SensorIdentityTests
     [InlineData("gpux-core")]
     [InlineData("GPU0-CORE")]
     [InlineData("gpu99999999999999999999-core")]
+    [InlineData("gpu01-core")]
+    [InlineData("gpu00-vram")]
     [InlineData("something-else")]
     public void TryParse_InvalidIds_ReturnNull(string? id)
     {
