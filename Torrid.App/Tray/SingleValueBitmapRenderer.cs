@@ -25,11 +25,12 @@ public sealed class SingleValueBitmapRenderer
 
             if (isRed && !blinkOn)
             {
-                using var dimBrush = new SolidBrush(Color.FromArgb(70, 244, 67, 54));
+                var (dr, dg, db) = ColorPalette.Red;
+                using var dimBrush = new SolidBrush(Color.FromArgb(70, dr, dg, db));
                 g.FillEllipse(dimBrush, 0, 0, Size, Size);
             }
 
-            var (r, gC, b) = ColorPalette.ForZone(zone);
+            var (r, gC, b) = valueCelsius is null ? ColorPalette.Unknown : ColorPalette.ForZone(zone);
             using var brush = new SolidBrush(Color.FromArgb(r, gC, b));
             using var format = new StringFormat(StringFormat.GenericTypographic)
             {

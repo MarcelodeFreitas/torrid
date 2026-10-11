@@ -1,3 +1,4 @@
+using Torrid.App;
 using Torrid.App.Tray;
 using Torrid.Core.Config;
 
@@ -37,5 +38,42 @@ public class SingleValueBitmapRendererTests
         var zone = SingleValueBitmapRenderer.ResolveZone(90.0, Cpu);
 
         Assert.Equal(ColorZone.Red, zone);
+    }
+}
+
+public class SingleValueBitmapRendererColourTests
+{
+    private static readonly ThresholdBand Cpu = new() { BlueMax = 40, GreenMax = 70, YellowMax = 85 };
+
+    private static bool ContainsOpaque(System.Drawing.Icon icon, (byte R, byte G, byte B) rgb)
+    {
+        using var bitmap = icon.ToBitmap();
+        for (var x = 0; x < bitmap.Width; x++)
+        {
+            for (var y = 0; y < bitmap.Height; y++)
+            {
+                var p = bitmap.GetPixel(x, y);
+                if (p.A == 255 && p.R == rgb.R && p.G == rgb.G && p.B == rgb.B) return true;
+            }
+        }
+
+        return false;
+    }
+
+    [Fact]
+    public void Render_WhenValueNull_DrawsInTheUnavailableColour()
+    {
+        using var icon = new SingleValueBitmapRenderer().Render(null, Cpu, blinkOn: true);
+
+        Assert.True(ContainsOpaque(icon, ColorPalette.Unknown));
+        Assert.False(ContainsOpaque(icon, ColorPalette.Blue));
+    }
+
+    [Fact]
+    public void Render_WhenValuePresent_DrawsInTheZoneColour()
+    {
+        using var icon = new SingleValueBitmapRenderer().Render(30, Cpu, blinkOn: true);
+
+        Assert.True(ContainsOpaque(icon, ColorPalette.Blue));
     }
 }

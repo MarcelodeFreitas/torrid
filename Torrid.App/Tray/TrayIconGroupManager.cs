@@ -36,7 +36,7 @@ public sealed class TrayIconGroupManager : IDisposable
         };
         _blinkTimer.Start();
 
-        _sensorSource.ReadingsUpdated += (_, _) => System.Windows.Application.Current?.Dispatcher.Invoke(Redraw);
+        _sensorSource.ReadingsUpdated += (_, _) => UiThread.Post(Redraw);
 
         Redraw();
     }

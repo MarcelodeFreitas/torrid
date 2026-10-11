@@ -31,7 +31,7 @@ public partial class MainWindow : Window
             () => _config.ExtraProtectedProcesses);
         _notificationService = new NotificationService(new WindowsToastNotifier(), new SystemClock(), _config.NotificationRefireMinutes);
 
-        DataContext = new MainWindowViewModel(_sensorSource, _config);
+        DataContext = new HomeViewModel(_sensorSource, _sensorSource, new ConfigManager(_configStore, _config));
 
         _trayIconGroupManager = new TrayIconGroupManager(_sensorSource, _config);
         _trayIconGroupManager.TrayIconClicked += (_, _) =>
