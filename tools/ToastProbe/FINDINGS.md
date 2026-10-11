@@ -1,54 +1,42 @@
-# Toast notification investigation — open issue, deferred
+# Toast notifications - RESOLVED: Windows needs a Start Menu shortcut carrying the AppUserModelID
 
-`Torrid.App`'s `WindowsToastNotifier` (via `Microsoft.Toolkit.Uwp.Notifications` 7.1.3,
-`ToastContentBuilder().Show()`) does not produce a visible toast or an Action Center
-entry on this machine, in either configuration tested:
+## Symptom (Phase 1 onward)
 
-| Run | Elevated | `Show()` threw? | Toast/banner appeared? | Action Center entry? |
-|---|---|---|---|---|
-| `Torrid.App.exe` (real app) | Yes (requireAdministrator) | No | No | No |
-| `tools/ToastProbe` (throwaway console app, same package/API, no manifest) | No | No | No | No |
+`ToastContentBuilder().Show()` (Microsoft.Toolkit.Uwp.Notifications 7.1.3) returned without throwing, the OS
+reported `NotificationSetting: Enabled`, the app id registered correctly under
+`HKCU\Software\Classes\AppUserModelId\<id>` - and yet no banner and no Action Center entry ever appeared, elevated
+or not. Windows never wrote `HKCU\...\Notifications\Settings\<id>\LastNotificationAddedTime`, which it does write for
+every toast it actually accepts (that key is the machine-checkable "accepted" signal used below).
 
-**Conclusion so far:** not an elevation problem — the non-elevated probe fails identically.
-`.Show()` completes without throwing in both cases, meaning the call reaches the
-notification API layer without a COM/activation exception, but the notification never
-reaches Action Center at all (not just a suppressed banner). Root cause not yet
-determined — candidates not yet checked:
-- Windows notification settings on this machine: Settings > System > Notifications,
-  whether "Get notifications from apps and other senders" is on, and whether Focus
-  Assist is active.
-- Whether the process's AUMID (`Torrid.App` / `ToastProbe.App`) needs a matching
-  Start Menu shortcut to be accepted by the shell on this Windows build — some Windows
-  10/11 versions still require this for unpackaged apps despite documentation
-  suggesting `SetCurrentProcessExplicitAppUserModelID` alone is sufficient.
-- Whether `Microsoft.Toolkit.Uwp.Notifications`' internal `ToastNotificationManagerCompat`
-  path is actually being hit by `ToastContentBuilder.Show()` on this package version,
-  vs. silently falling back to something that no-ops without a package identity.
+## Cause (proven 2026-10-11)
 
-## Update 2026-09-25 — additional diagnostics from the final Phase 1 review
+On this Windows build an unpackaged desktop app's toasts are silently dropped unless a **Start Menu shortcut that
+carries the same AppUserModelID** exists. The toolkit's registry registration alone is not enough.
 
-The final whole-branch review inspected the registry directly and found the AUMID
-registration itself succeeded for both `Torrid.App` and `ToastProbe.App`
-(`HKCU\Software\Classes\AppUserModelId\<aumid>` has `DisplayName`/`IconUri`/
-`CustomActivator` for both), but neither has an entry under
-`HKCU\...\Notifications\Settings` (which Windows writes when it accepts a
-notification from an app) - while other apps on the machine do, one dated
-2026-09-24 (the actual test day). `PushNotifications\ToastEnabled = 1` globally.
+Controlled experiment with this probe (`ToastProbe.App`):
 
-Following that lead, `ToastNotificationManagerCompat.CreateToastNotifier().Setting`
-was checked directly (added to this probe) and returned **`Enabled`** - no
-`DisabledForApplication`, `DisabledForUser`, `DisabledByGroupPolicy`, or
-`DisabledByManifest`. This rules out every permission-based block the API
-exposes, yet the toast still produces no banner and no Action Center entry.
+| State | Result |
+|---|---|
+| Registry registration only (what Torrid did) | not accepted, every time |
+| + Start Menu shortcut with `System.AppUserModel.ID = ToastProbe.App` (`--shortcut`) | **accepted** (`LastNotificationAddedTime` written) |
+| Shortcut deleted again | not accepted |
 
-**Net result:** registration succeeds, the OS reports the notification as
-permitted, `.Show()` throws nothing - and still nothing is ever delivered or
-recorded. Root cause remains undetermined; deeper candidates (untested):
-whether a `ToastNotification.Failed` event handler would reveal a delivery-time
-failure, or something specific to this Windows build/session not covered by the
-documented API surface.
+Windows needs a short while (more than ~6 seconds, less than a minute) to pick up a brand-new shortcut, so the very
+first toast right after the shortcut is first created can still be dropped; later ones are delivered.
 
-**Deferred per explicit user instruction 2026-09-24/25** - revisit before Phase 1/the
-notification feature is considered done. `NotificationService` (the debounce/hysteresis
-logic) is unaffected and fully unit-tested independent of this; only the actual OS
-toast delivery is unverified/broken.
+## Fix (Torrid)
+
+Create/refresh `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Torrid.lnk` at startup, pointing at the running exe and
+carrying Torrid's AppUserModelID (Debug builds use a separate id and shortcut so they don't fight the published app).
+`ShortcutHelper.cs` here is the reference interop implementation. Settings has a "Send test notification" button so the
+result can be checked at any time.
+
+## Re-running the probe
+
+```
+dotnet build tools\ToastProbe -c Release
+tools\ToastProbe\bin\Release\net8.0-windows10.0.17763.0\ToastProbe.exe              # registry-only baseline
+tools\ToastProbe\bin\Release\net8.0-windows10.0.17763.0\ToastProbe.exe --shortcut   # creates the shortcut, then toasts
+```
+The probe prints `RESULT: Windows ACCEPTED the notification.` when the registry signal changes. Delete
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\ToastProbe.lnk` afterwards to clean up.
