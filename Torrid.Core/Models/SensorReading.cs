@@ -5,4 +5,6 @@ public sealed record SensorReading(
     string Label,
     SensorKind Kind,
     int? GpuIndex,
-    double? ValueCelsius);
+    double? ValueCelsius,
+    string? HardwareName = null,
+    string? SourceSensorName = null);

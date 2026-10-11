@@ -22,31 +22,26 @@ public static class SensorReadingBuilder
         var cpu = hardware.FirstOrDefault(h => h.HardwareType == HardwareType.Cpu);
         if (cpu is not null)
         {
-            readings.Add(new SensorReading(
-                "cpu", "CPU", SensorKind.CpuPackage, null,
-                FindTemperature(cpu, CpuTemperatureSensorName)));
+            readings.Add(MakeReading("cpu", "CPU", SensorKind.CpuPackage, null, cpu, CpuTemperatureSensorName));
         }
 
         var gpuIndex = 0;
         foreach (var gpu in hardware.Where(h => GpuHardwareTypes.Contains(h.HardwareType)))
         {
-            readings.Add(new SensorReading(
-                $"gpu{gpuIndex}-core", $"GPU{gpuIndex} Core", SensorKind.GpuCore, gpuIndex,
-                FindTemperature(gpu, GpuCoreTemperatureSensorName)));
-            readings.Add(new SensorReading(
-                $"gpu{gpuIndex}-hotspot", $"GPU{gpuIndex} Hot", SensorKind.GpuHotSpot, gpuIndex,
-                FindTemperature(gpu, GpuHotSpotTemperatureSensorName)));
-            readings.Add(new SensorReading(
-                $"gpu{gpuIndex}-vram", $"GPU{gpuIndex} VRAM", SensorKind.GpuVram, gpuIndex,
-                FindTemperature(gpu, GpuVramTemperatureSensorName)));
+            readings.Add(MakeReading($"gpu{gpuIndex}-core", $"GPU{gpuIndex} Core", SensorKind.GpuCore, gpuIndex, gpu, GpuCoreTemperatureSensorName));
+            readings.Add(MakeReading($"gpu{gpuIndex}-hotspot", $"GPU{gpuIndex} Hot", SensorKind.GpuHotSpot, gpuIndex, gpu, GpuHotSpotTemperatureSensorName));
+            readings.Add(MakeReading($"gpu{gpuIndex}-vram", $"GPU{gpuIndex} VRAM", SensorKind.GpuVram, gpuIndex, gpu, GpuVramTemperatureSensorName));
             gpuIndex++;
         }
 
         return readings;
     }
 
-    private static double? FindTemperature(HardwareSnapshot hardware, string sensorName) =>
-        hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature && s.Name == sensorName)?.Value;
+    private static SensorReading MakeReading(string id, string label, SensorKind kind, int? gpuIndex, HardwareSnapshot hardware, string sensorName) =>
+        new(id, label, kind, gpuIndex,
+            hardware.Sensors.FirstOrDefault(s => s.SensorType == SensorType.Temperature && s.Name == sensorName)?.Value,
+            hardware.Name,
+            sensorName);
 
     public static IReadOnlyList<SensorReading> ToUnavailable(IReadOnlyList<SensorReading> readings) =>
         readings.Select(r => r with { ValueCelsius = null }).ToList();

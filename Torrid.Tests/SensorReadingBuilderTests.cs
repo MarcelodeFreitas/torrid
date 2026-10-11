@@ -110,4 +110,28 @@ public class SensorReadingBuilderTests
 
         Assert.Empty(result);
     }
+
+    [Fact]
+    public void Build_PopulatesHardwareAndSourceSensorNames()
+    {
+        var hardware = new List<HardwareSnapshot>
+        {
+            new(HardwareType.Cpu, "AMD Ryzen 9 5950X",
+                new[] { Temp("Core (Tctl/Tdie)", 59.0) }, Array.Empty<HardwareSnapshot>()),
+            new(HardwareType.GpuNvidia, "NVIDIA GeForce RTX 3090",
+                new[] { Temp("GPU Core", 41.0), Temp("GPU Hot Spot", 51.0), Temp("GPU Memory Junction", 50.0) },
+                Array.Empty<HardwareSnapshot>()),
+        };
+
+        var readings = SensorReadingBuilder.Build(hardware);
+
+        var cpu = Assert.Single(readings, r => r.Id == "cpu");
+        Assert.Equal("AMD Ryzen 9 5950X", cpu.HardwareName);
+        Assert.Equal("Core (Tctl/Tdie)", cpu.SourceSensorName);
+        var hot = Assert.Single(readings, r => r.Id == "gpu0-hotspot");
+        Assert.Equal("NVIDIA GeForce RTX 3090", hot.HardwareName);
+        Assert.Equal("GPU Hot Spot", hot.SourceSensorName);
+        var vram = Assert.Single(readings, r => r.Id == "gpu0-vram");
+        Assert.Equal("GPU Memory Junction", vram.SourceSensorName);
+    }
 }
