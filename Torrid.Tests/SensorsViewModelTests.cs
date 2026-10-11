@@ -184,6 +184,21 @@ public class SensorsViewModelTests
     }
 
     [Fact]
+    public void Label_UnchangedValue_DoesNotWriteConfig()
+    {
+        var (vm, _, config) = Make(readings: CpuAndGpu0());
+        var hot = Item(vm, "gpu0-hotspot");
+        hot.Label = "Main GPU";
+        var changes = 0;
+        config.Changed += (_, _) => changes++;
+
+        hot.Label = "Main GPU";
+        Item(vm, "cpu").Label = "CPU";
+
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
     public void Label_ClearedKeepsOtherOverrides()
     {
         var (vm, _, config) = Make(readings: CpuAndGpu0());

@@ -47,7 +47,12 @@ public sealed class SensorListItemViewModel : ObservableObject
         {
             var trimmed = value?.Trim() ?? "";
             var custom = trimmed.Length == 0 || trimmed == DefaultLabel ? null : trimmed;
-            _config.Update(c => SensorPreferences.Update(c, Id, p => p.Label = custom));
+
+            // Name boxes commit on every focus loss; only write (and save) when the stored label really changes.
+            var stored = _config.Config.Sensors.TryGetValue(Id, out var preference) && !string.IsNullOrWhiteSpace(preference.Label)
+                ? preference.Label
+                : null;
+            if (stored != custom) _config.Update(c => SensorPreferences.Update(c, Id, p => p.Label = custom));
 
             // Always raise: the edit box may hold "   " while the resolved value is unchanged.
             _label = custom ?? DefaultLabel;

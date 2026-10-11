@@ -1,0 +1,133 @@
+<UserControl x:Class="Torrid.App.Views.SensorsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Torrid.App.ViewModels"
+             Background="Transparent" Focusable="True" IsTabStop="False" FocusVisualStyle="{x:Null}">
+    <UserControl.Resources>
+        <!-- Column widths shared by the group header labels and every row so the toggles line up. -->
+        <GridLength x:Key="ValueColumnWidth">80</GridLength>
+        <GridLength x:Key="ToggleColumnWidth">66</GridLength>
+
+        <Style x:Key="RowValueStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{Binding Zone, Converter={StaticResource ZoneToBrush}}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasValue}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource ZoneUnknownBrush}"/>
+                    <Setter Property="FontWeight" Value="Normal"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ColumnHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelStyle}">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+        </Style>
+
+        <DataTemplate x:Key="SensorRowTemplate" DataType="{x:Type vm:SensorListItemViewModel}">
+            <Border Style="{StaticResource PanelCardStyle}" Padding="16,10" Margin="0,0,0,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="{StaticResource ValueColumnWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" MaxWidth="280"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding Label}" FontSize="14" MaxLength="40"
+                                     AutomationProperties.Name="{Binding DefaultLabel, StringFormat='Name for {0}'}"
+                                     ToolTip="Rename this sensor. Clear the name to use the default."/>
+                            <Button Grid.Column="1" Style="{StaticResource IconButtonStyle}" Content="&#xE7A7;" Margin="4,0,0,0"
+                                    Command="{Binding ResetLabelCommand}"
+                                    ToolTip="{Binding DefaultLabel}" ToolTipService.InitialShowDelay="300"
+                                    AutomationProperties.Name="{Binding DefaultLabel, StringFormat='Use the default name {0}'}"
+                                    Visibility="{Binding HasCustomLabel, Converter={StaticResource BoolToVisibility}}"/>
+                        </Grid>
+                        <TextBlock Text="{Binding Caption}" Style="{StaticResource CaptionTextStyle}" Margin="1,5,0,0"
+                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Caption}"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1" Text="{Binding ValueText}" Style="{StaticResource RowValueStyle}"
+                               HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <CheckBox Grid.Column="2" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Center"
+                              IsChecked="{Binding ShowInWindow}" AutomationProperties.Name="Show in window"
+                              ToolTip="Show on the Home page"/>
+                    <CheckBox Grid.Column="3" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Center"
+                              IsChecked="{Binding ShowInTray}" AutomationProperties.Name="Show in tray"
+                              ToolTip="Show as a tray icon"/>
+                    <CheckBox Grid.Column="4" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Center"
+                              IsChecked="{Binding Notify}" AutomationProperties.Name="Alerts"
+                              ToolTip="Notify when this sensor turns red"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="SensorGroupTemplate" DataType="{x:Type vm:SensorGroupViewModel}">
+            <StackPanel Margin="0,0,0,18">
+                <!-- Header: device name on the left, toggle column labels aligned over the switches (row border 1 + padding 16). -->
+                <Grid Margin="2,0,17,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="{StaticResource ValueColumnWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" TextTrimming="CharacterEllipsis" VerticalAlignment="Bottom">
+                        <Run Text="{Binding Title, Mode=OneWay, Converter={StaticResource SpacedCaps}}" FontSize="13"
+                             FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/><Run
+                             Text="   "/><Run Text="{Binding Subtitle, Mode=OneWay}" FontSize="12"
+                             Foreground="{StaticResource TextMutedBrush}"/>
+                    </TextBlock>
+                    <TextBlock Grid.Column="2" Text="Window" Style="{StaticResource ColumnHeaderStyle}"/>
+                    <TextBlock Grid.Column="3" Text="Tray" Style="{StaticResource ColumnHeaderStyle}"/>
+                    <TextBlock Grid.Column="4" Text="Alerts" Style="{StaticResource ColumnHeaderStyle}"/>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource SensorRowTemplate}" Focusable="False"/>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="32,28,8,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,24,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Margin="0,0,16,0">
+                <TextBlock Text="Sensors" Style="{StaticResource PageTitleStyle}"/>
+                <TextBlock Style="{StaticResource PageSubtitleStyle}"
+                           Text="Choose what appears in the window, in the tray and in alerts. Rename a sensor to tell identical cards apart."/>
+            </StackPanel>
+            <Button Grid.Column="1" Style="{StaticResource SecondaryButtonStyle}" VerticalAlignment="Top" Margin="0,4,0,0"
+                    Command="{Binding ResetToDefaultsCommand}"
+                    ToolTip="Clear every name and switch back to the built-in defaults">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE72C;" FontSize="12" Margin="0,1,8,0"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="Reset to defaults" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" Margin="0,24,0,0" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource SensorGroupTemplate}"
+                          Focusable="False" Margin="0,0,14,8"/>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

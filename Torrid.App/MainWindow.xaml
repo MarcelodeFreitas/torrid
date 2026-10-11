@@ -13,6 +13,15 @@
         <DataTemplate DataType="{x:Type vm:HomeViewModel}">
             <views:HomeView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SensorsViewModel}">
+            <views:SensorsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ThresholdsViewModel}">
+            <views:ThresholdsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsPageViewModel}">
+            <views:SettingsView/>
+        </DataTemplate>
     </Window.Resources>
 
     <Grid>

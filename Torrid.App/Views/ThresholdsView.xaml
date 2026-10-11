@@ -1,0 +1,140 @@
+<UserControl x:Class="Torrid.App.Views.ThresholdsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Torrid.App.ViewModels"
+             Background="Transparent" Focusable="True" IsTabStop="False" FocusVisualStyle="{x:Null}">
+    <UserControl.Resources>
+        <!-- Tick label centred on a segment boundary (it sits at the right edge of its column). -->
+        <Style x:Key="TickStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Margin" Value="0,0,-20,0"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <!-- With a bad ordering the boundaries collapse onto each other; hide them (keeping the height) until fixed. -->
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasError}" Value="True">
+                    <Setter Property="Visibility" Value="Hidden"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <DataTemplate x:Key="ThresholdFieldLabel">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <Ellipse Width="8" Height="8" Fill="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                         VerticalAlignment="Center" Margin="0,1,6,0"/>
+                <TextBlock Text="{Binding}" Style="{StaticResource FieldLabelStyle}"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <DataTemplate x:Key="ThresholdCardTemplate" DataType="{x:Type vm:ThresholdRowViewModel}">
+            <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,14,14" Padding="18,14,18,12">
+                <!-- Local tab order: the three limits first, then Reset. -->
+                <StackPanel KeyboardNavigation.TabNavigation="Local">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Reset" TabIndex="4"
+                                Padding="12,3" MinHeight="26" FontSize="12" Command="{Binding ResetCommand}"
+                                ToolTip="Restore the default limits" VerticalAlignment="Center"
+                                AutomationProperties.Name="{Binding Title, StringFormat='Reset {0} limits'}"/>
+                        <TextBlock Text="{Binding Title}" Style="{StaticResource CardTitleStyle}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+                    </DockPanel>
+
+                    <!-- The three limits (°C). -->
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <ContentPresenter Content="Blue below" Tag="{StaticResource ZoneBlueBrush}"
+                                              ContentTemplate="{StaticResource ThresholdFieldLabel}"/>
+                            <TextBox Style="{StaticResource NumberBoxStyle}" HorizontalAlignment="Left"
+                                     Text="{Binding BlueMax}" TabIndex="1" AutomationProperties.Name="Blue below, degrees Celsius"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                            <ContentPresenter Content="Green below" Tag="{StaticResource ZoneGreenBrush}"
+                                              ContentTemplate="{StaticResource ThresholdFieldLabel}"/>
+                            <TextBox Style="{StaticResource NumberBoxStyle}" HorizontalAlignment="Left"
+                                     Text="{Binding GreenMax}" TabIndex="2" AutomationProperties.Name="Green below, degrees Celsius"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <ContentPresenter Content="Yellow up to" Tag="{StaticResource ZoneYellowBrush}"
+                                              ContentTemplate="{StaticResource ThresholdFieldLabel}"/>
+                            <TextBox Style="{StaticResource NumberBoxStyle}" HorizontalAlignment="Left"
+                                     Text="{Binding YellowMax}" TabIndex="3" AutomationProperties.Name="Yellow up to, degrees Celsius"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Preview: four zone segments sized from the band, with the limits under the boundaries. -->
+                    <Grid Margin="0,18,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="{Binding BlueWidth}"/>
+                            <ColumnDefinition Width="{Binding GreenWidth}"/>
+                            <ColumnDefinition Width="{Binding YellowWidth}"/>
+                            <ColumnDefinition Width="{Binding RedWidth}"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="8"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Column="0" CornerRadius="4,0,0,4" Background="{StaticResource ZoneBlueBrush}"/>
+                        <Border Grid.Column="1" Background="{StaticResource ZoneGreenBrush}"/>
+                        <Border Grid.Column="2" Background="{StaticResource ZoneYellowBrush}"/>
+                        <Border Grid.Column="3" CornerRadius="0,4,4,0" Background="{StaticResource ZoneRedBrush}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource TickStyle}" Margin="0,5,-20,0"
+                                   Text="{Binding BlueMax}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource TickStyle}" Margin="0,5,-20,0"
+                                   Text="{Binding GreenMax}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource TickStyle}" Margin="0,5,-20,0"
+                                   Text="{Binding YellowMax}"/>
+                    </Grid>
+
+                    <!-- One line, always present so the card never changes height: the error, or the red rule. -->
+                    <TextBlock Margin="0,6,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionTextStyle}">
+                                <Setter Property="Text" Value="{Binding YellowMax, StringFormat='Red above {0} °C.'}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasError}" Value="True">
+                                        <Setter Property="Text" Value="{Binding Error}"/>
+                                        <Setter Property="Foreground" Value="{StaticResource ErrorTextBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid Margin="32,28,8,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,24,0">
+            <TextBlock Text="Thresholds" Style="{StaticResource PageTitleStyle}"/>
+            <TextBlock Style="{StaticResource PageSubtitleStyle}"
+                       Text="Set the temperatures where colours change. Edits apply instantly."/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="0,24,0,0" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource ThresholdCardTemplate}"
+                          Focusable="False" Margin="0,0,2,8">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <!-- Two cards per row when there is room, one when the window is narrow. -->
+                        <UniformGrid VerticalAlignment="Top"
+                                     Columns="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}, Converter={StaticResource WidthToColumns}, ConverterParameter=620}"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

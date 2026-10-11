@@ -104,7 +104,9 @@ public sealed class ThresholdRowViewModel : ObservableObject
     {
         var band = _config.Config.Thresholds.GetValueOrDefault(Kind) ?? AppConfig.DefaultThresholds()[Kind];
         SetAll(band.BlueMax, band.GreenMax, band.YellowMax);
-        Error = null;
+
+        // A hand-edited config can hold a bad band: show it as an error rather than pretending it is fine.
+        Error = Validate(band.BlueMax, band.GreenMax, band.YellowMax);
     }
 
     private void SetAll(double blue, double green, double yellow)

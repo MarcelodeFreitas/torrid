@@ -52,10 +52,20 @@ public sealed class AppHost : IDisposable
         Sensors.ReadingsUpdated += (_, readings) => UiThread.Post(() => EvaluateNotifications(readings));
 
         Home = new HomeViewModel(Sensors, Hardware, ConfigManager);
+        SensorsPage = new SensorsViewModel(Sensors, ConfigManager);
+        ThresholdsPage = new ThresholdsViewModel(ConfigManager);
+        SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware);
         Shell = new ShellViewModel(new[]
         {
-            new NavItem(PageId.Home, "Home", "", Home),
+            new NavItem(PageId.Home, "Home", "\uE80F", Home),
+            new NavItem(PageId.Sensors, "Sensors", "\uE9CA", SensorsPage),
+            new NavItem(PageId.Thresholds, "Thresholds", "\uE790", ThresholdsPage),
+            new NavItem(PageId.Settings, "Settings", "\uE713", SettingsPage),
         });
+        if (options.InitialPage is PageId initialPage) Shell.Navigate(initialPage);
+
+        // Edits apply live: the page view models write through ConfigManager.Update, which raises Changed.
+        ConfigManager.Changed += (_, _) => UiThread.Post(ApplyLiveSettings);
 
         Tray = new TrayIconGroupManager(Sensors, config);
         Tray.TrayIconClicked += (_, _) => ShowMainWindow();
@@ -72,6 +82,12 @@ public sealed class AppHost : IDisposable
     public NotificationService Notifications { get; }
 
     public HomeViewModel Home { get; }
+
+    public SensorsViewModel SensorsPage { get; }
+
+    public ThresholdsViewModel ThresholdsPage { get; }
+
+    public SettingsPageViewModel SettingsPage { get; }
 
     public ShellViewModel Shell { get; }
 
@@ -112,6 +128,19 @@ public sealed class AppHost : IDisposable
         (Sensors as IDisposable)?.Dispose();
         Tray.Dispose();
         ConfigManager.Dispose(); // flushes a pending debounced save
+    }
+
+    private void ApplyLiveSettings()
+    {
+        if (_disposed) return;
+
+        var config = ConfigManager.Config;
+        if (Sensors is SensorService service && service.PollIntervalMs != config.PollIntervalMs)
+        {
+            service.PollIntervalMs = config.PollIntervalMs;
+        }
+
+        Notifications.RefireMinutes = config.NotificationRefireMinutes;
     }
 
     private void EvaluateNotifications(IReadOnlyList<SensorReading> readings)

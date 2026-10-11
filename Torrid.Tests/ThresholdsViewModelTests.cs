@@ -30,6 +30,19 @@ public class ThresholdsViewModelTests
     }
 
     [Fact]
+    public void InvalidBandInConfig_IsShownWithAnError_AndLeftAlone()
+    {
+        var config = new AppConfig();
+        config.Thresholds[SensorKind.GpuHotSpot] = new ThresholdBand { BlueMax = 50, GreenMax = 99, YellowMax = 95 };
+
+        var (vm, manager) = Make(config);
+
+        var hot = Row(vm, SensorKind.GpuHotSpot);
+        Assert.Equal(ThresholdRowViewModel.OrderingError, hot.Error);
+        Assert.Equal(99, manager.Config.Thresholds[SensorKind.GpuHotSpot].GreenMax);
+    }
+
+    [Fact]
     public void ValidEdit_UpdatesConfig_WithoutError()
     {
         var (vm, config) = Make();
