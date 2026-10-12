@@ -1,5 +1,7 @@
 # Torrid — Project Plan
 
+> **Status:** this is the original design document. The app is built (phases 1-4: sensor service, tray, notifications, sidebar UI, anti-cheat safety); see [README.md](README.md) for what is actually implemented and how to build, run and publish it, and [docs/anti-cheat.md](docs/anti-cheat.md) for anti-cheat behaviour.
+
 A Windows desktop app that monitors CPU and GPU (core/hotspot/VRAM) temperatures in real time, shows them as color-coded numbers in a tray icon and an optional window, and fires a native Windows notification when any sensor crosses into the critical zone.
 
 This document is self-contained — everything needed to start implementation is here. Paste it into a new conversation to kick off the build.
