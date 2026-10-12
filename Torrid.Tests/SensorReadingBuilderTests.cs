@@ -285,6 +285,20 @@ public class SensorReadingBuilderTests
     }
 
     [Fact]
+    public void Build_AddedLiveSensor_PrefersTheStoredHardwareName_ElseTheOwnersName()
+    {
+        const string id = "hw:/lpc/nct6798d/0/temperature/4";
+        var info = new AddedSensor { Name = "VRM", HardwareName = "ASUS ROG (Nuvoton NCT6798D)", Kind = SensorKind.Motherboard };
+
+        var withInfo = Assert.Single(SensorReadingBuilder.Build(BoardTree(), new[] { id }, _ => info));
+        var withoutInfo = Assert.Single(SensorReadingBuilder.Build(BoardTree(), new[] { id }));
+
+        Assert.Equal(48.0, withInfo.ValueCelsius);
+        Assert.Equal("ASUS ROG (Nuvoton NCT6798D)", withInfo.HardwareName);
+        Assert.Equal("Nuvoton NCT6798D", withoutInfo.HardwareName);
+    }
+
+    [Fact]
     public void Build_AddedIdNotFoundAndNoInfo_IsSkipped()
     {
         var readings = SensorReadingBuilder.Build(BoardTree(), new[] { "hw:/nvme/9/temperature/0" });
@@ -348,6 +362,7 @@ public class SensorReadingBuilderTests
     [InlineData(HardwareType.GpuIntel, SensorKind.GpuOther)]
     [InlineData(HardwareType.Motherboard, SensorKind.Motherboard)]
     [InlineData(HardwareType.SuperIO, SensorKind.Motherboard)]
+    [InlineData(HardwareType.EmbeddedController, SensorKind.Motherboard)]
     [InlineData(HardwareType.Storage, SensorKind.Storage)]
     [InlineData(HardwareType.Memory, SensorKind.Memory)]
     [InlineData(HardwareType.Network, SensorKind.OtherTemp)]

@@ -63,7 +63,7 @@ public static class SensorReadingBuilder
                     info?.Kind ?? KindFor(owner!.HardwareType),
                     null,
                     sensor is { SensorType: SensorType.Temperature } ? sensor.Value : null,
-                    owner?.Name ?? info?.HardwareName,
+                    info?.HardwareName ?? owner?.Name,
                     sensor?.Name));
             }
         }
@@ -76,7 +76,7 @@ public static class SensorReadingBuilder
     {
         HardwareType.Cpu => SensorKind.CpuOther,
         HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel => SensorKind.GpuOther,
-        HardwareType.Motherboard or HardwareType.SuperIO => SensorKind.Motherboard,
+        HardwareType.Motherboard or HardwareType.SuperIO or HardwareType.EmbeddedController => SensorKind.Motherboard,
         HardwareType.Storage => SensorKind.Storage,
         HardwareType.Memory => SensorKind.Memory,
         _ => SensorKind.OtherTemp,

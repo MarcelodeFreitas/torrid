@@ -68,6 +68,7 @@ public class SensorCatalogBuilderTests
 
         Assert.Equal("ASUS ROG", catalog.Single(c => c.Id == "hw:/lpc/a").HardwareName);
         Assert.Equal("EC", catalog.Single(c => c.Id == "hw:/ec/b").HardwareName);
+        Assert.Equal(SensorKind.Motherboard, catalog.Single(c => c.Id == "hw:/ec/b").Kind);
     }
 
     [Fact]
