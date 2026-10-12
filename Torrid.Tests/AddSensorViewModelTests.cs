@@ -273,6 +273,60 @@ public class AddSensorViewModelTests
     }
 
     [Fact]
+    public async Task CatalogEntriesTheBuiltInCardsAlreadyShow_AreFlagged_AndCannotBeAdded()
+    {
+        const string Gpu = "NVIDIA GeForce RTX 3090";
+        const string CpuTctlId = "hw:/amdcpu/0/temperature/2";
+        const string GpuCoreId = "hw:/gpu-nvidia/0/temperature/0";
+        const string GpuHotOtherCardId = "hw:/gpu-nvidia/1/temperature/2";
+        var catalog = new FakeCatalog
+        {
+            Result = new SensorCatalogResult(new CatalogSensor[]
+            {
+                new(CcdId, "CCD1 (Tdie)", Cpu, SensorKind.CpuOther, 61),
+                new(CpuTctlId, "Core (Tctl/Tdie)", Cpu, SensorKind.CpuOther, 57),
+                new(GpuCoreId, "GPU Core", Gpu, SensorKind.GpuOther, 66),
+                new(GpuHotOtherCardId, "GPU Hot Spot", "Radeon RX 7900", SensorKind.GpuOther, 70),
+                new("gpu0-vram", "GPU Memory Junction", Gpu, SensorKind.GpuOther, 80),
+            }, null),
+        };
+        var readings = new SensorReading[]
+        {
+            new("cpu", "CPU", SensorKind.CpuPackage, null, 57, Cpu, "Core (Tctl/Tdie)"),
+            new("gpu0-core", "GPU0 Core", SensorKind.GpuCore, 0, 66, Gpu, "GPU Core"),
+            new("gpu0-hotspot", "GPU0 Hot", SensorKind.GpuHotSpot, 0, 88, Gpu, "GPU Hot Spot"),
+            // An added sensor's reading is not a built-in card: it must not hide its catalog entry.
+            new(CcdId, "CCD1 (Tdie)", SensorKind.CpuOther, null, 61, Cpu, "CCD1 (Tdie)"),
+        };
+        var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero);
+        var vm = new AddSensorViewModel(catalog, manager, () => readings);
+        vm.OpenCommand.Execute(null);
+
+        await vm.ScanAsync();
+
+        foreach (var id in new[] { CpuTctlId, GpuCoreId, "gpu0-vram" })
+        {
+            var item = Item(vm, id);
+            Assert.True(item.IsBuiltIn, id);
+            Assert.Equal(AddSensorItemViewModel.BuiltInText, item.AddButtonText);
+            Assert.False(item.AddCommand.CanExecute(null));
+            vm.Add(item);
+        }
+
+        Assert.Equal("Already shown", AddSensorItemViewModel.BuiltInText);
+        Assert.Empty(manager.Config.AddedSensors);
+        Assert.Empty(manager.Config.Sensors);
+        Assert.False(Item(vm, CcdId).IsBuiltIn);
+        Assert.False(Item(vm, GpuHotOtherCardId).IsBuiltIn);
+        Assert.True(Item(vm, GpuHotOtherCardId).AddCommand.CanExecute(null));
+        Assert.Equal("Add CCD1 (Tdie)", Item(vm, CcdId).AutomationName);
+
+        Item(vm, CcdId).AddCommand.Execute(null);
+        Assert.Equal("Added CCD1 (Tdie)", Item(vm, CcdId).AutomationName);
+        Assert.Equal("Core (Tctl/Tdie) is already shown", Item(vm, CpuTctlId).AutomationName);
+    }
+
+    [Fact]
     public async Task WithoutACatalog_ScanExplainsItIsUnavailable()
     {
         var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero);

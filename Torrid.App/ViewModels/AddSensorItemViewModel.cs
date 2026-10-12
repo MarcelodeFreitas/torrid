@@ -5,17 +5,23 @@ using System.Globalization;
 using Torrid.Core.Models;
 using Torrid.Core.Sensors;
 
-/// <summary>One sensor found by a scan in the Add sensor panel: its name, value then, and an Add button (or "Added").</summary>
+/// <summary>
+/// One sensor found by a scan in the Add sensor panel: its name, value then, and an Add button, or a status instead
+/// ("Added", or "Already shown" for a sensor a built-in card already reads, which can never be added).
+/// </summary>
 public sealed class AddSensorItemViewModel : ObservableObject
 {
+    public const string BuiltInText = "Already shown";
+
     private bool _isAdded;
 
-    public AddSensorItemViewModel(CatalogSensor sensor, bool isAdded, Action<AddSensorItemViewModel> add)
+    public AddSensorItemViewModel(CatalogSensor sensor, bool isAdded, Action<AddSensorItemViewModel> add, bool isBuiltIn = false)
     {
         Sensor = sensor;
         _isAdded = isAdded;
+        IsBuiltIn = isBuiltIn;
         ValueText = sensor.ValueCelsius is double value ? value.ToString("F0", CultureInfo.InvariantCulture) + " °C" : "";
-        AddCommand = new RelayCommand(_ => add(this), _ => !IsAdded);
+        AddCommand = new RelayCommand(_ => add(this), _ => !IsAdded && !IsBuiltIn);
     }
 
     public CatalogSensor Sensor { get; }
@@ -40,11 +46,18 @@ public sealed class AddSensorItemViewModel : ObservableObject
         {
             if (!Set(ref _isAdded, value)) return;
             Raise(nameof(AddButtonText));
+            Raise(nameof(AutomationName));
             AddCommand.RaiseCanExecuteChanged();
         }
     }
 
-    public string AddButtonText => IsAdded ? "Added" : "Add";
+    /// <summary>A built-in card (CPU temperature, GPU core / hot spot / memory junction) already reads this sensor.</summary>
+    public bool IsBuiltIn { get; }
+
+    public string AddButtonText => IsBuiltIn ? BuiltInText : IsAdded ? "Added" : "Add";
+
+    /// <summary>The button's accessible name, following its state.</summary>
+    public string AutomationName => IsBuiltIn ? $"{Name} is already shown" : IsAdded ? $"Added {Name}" : $"Add {Name}";
 
     public RelayCommand AddCommand { get; }
 }

@@ -214,7 +214,7 @@ public class SensorsViewModelTests
     }
 
     [Fact]
-    public void ResetToDefaults_EmptiesSensorPreferences()
+    public void ResetToDefaults_EmptiesSensorPreferences_WhenNothingIsAdded()
     {
         var config = new AppConfig();
         config.Sensors["gpu1-hotspot"] = new SensorPreference { Label = "EVGA Hot" };
@@ -417,6 +417,32 @@ public class SensorsViewModelTests
         Assert.False(manager.Config.Sensors.ContainsKey(VrmId));
         Assert.DoesNotContain(vm.Groups.SelectMany(g => g.Items), i => i.Id == VrmId);
         Assert.DoesNotContain(vm.Groups, g => g.Title == "Motherboard");
+    }
+
+    [Fact]
+    public void ResetToDefaults_KeepsAddedSensorsInTheWindow_ButClearsTheirOtherOverrides()
+    {
+        var config = WithAdded((VrmId, "VRM", Board, SensorKind.Motherboard), (CcdId, "CCD1 (Tdie)", Cpu5950X, SensorKind.CpuOther));
+        config.Sensors[VrmId] = new SensorPreference { Label = "Hot VRM", ShowInWindow = false, ShowInTray = true, Notify = false };
+        config.AddedSensors["garbage"] = new AddedSensor { Name = "Nope", Kind = SensorKind.Motherboard };
+        config.Sensors["cpu"] = new SensorPreference { Label = "5950X", ShowInTray = false };
+        var (vm, _, manager) = Make(config, CpuAndGpu0());
+
+        vm.ResetToDefaultsCommand.Execute(null);
+
+        Assert.Equal(new[] { CcdId, VrmId }, manager.Config.Sensors.Keys.OrderBy(k => k, StringComparer.Ordinal));
+        var vrm = manager.Config.Sensors[VrmId];
+        Assert.True(vrm.ShowInWindow);
+        Assert.Null(vrm.Label);
+        Assert.Null(vrm.ShowInTray);
+        Assert.Null(vrm.Notify);
+        Assert.True(manager.Config.Sensors[CcdId].ShowInWindow);
+        Assert.Equal("VRM", Item(vm, VrmId).Label);
+        Assert.True(Item(vm, VrmId).ShowInWindow);
+        Assert.False(Item(vm, VrmId).ShowInTray);
+        Assert.True(Item(vm, VrmId).Notify);
+        Assert.Equal("CPU", Item(vm, "cpu").Label);
+        Assert.True(Item(vm, "cpu").ShowInTray);
     }
 
     [Fact]

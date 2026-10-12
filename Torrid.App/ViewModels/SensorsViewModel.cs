@@ -24,8 +24,8 @@ public sealed class SensorsViewModel : ObservableObject
         _sensors = sensors;
         _config = config;
 
-        AddSensor = new AddSensorViewModel(catalog, config);
-        ResetToDefaultsCommand = new RelayCommand(_ => _config.Update(c => c.Sensors = new Dictionary<string, SensorPreference>()));
+        AddSensor = new AddSensorViewModel(catalog, config, () => _sensors.CurrentReadings);
+        ResetToDefaultsCommand = new RelayCommand(_ => _config.Update(ResetToDefaults));
 
         // Readings arrive on the poll thread; always hop to the UI thread before touching bound collections.
         _sensors.ReadingsUpdated += (_, _) => UiThread.Post(OnReadingsUpdated);
@@ -40,6 +40,19 @@ public sealed class SensorsViewModel : ObservableObject
     public AddSensorViewModel AddSensor { get; }
 
     public ICommand ResetToDefaultsCommand { get; }
+
+    /// <summary>
+    /// Clears every name and switch, but keeps added sensors in the window (adding one switches it on), so a reset
+    /// never silently hides them from Home. Their names and tray / alert switches are cleared like the rest.
+    /// </summary>
+    private static void ResetToDefaults(AppConfig config)
+    {
+        config.Sensors = new Dictionary<string, SensorPreference>();
+        foreach (var (id, info) in config.AddedSensors ?? new Dictionary<string, AddedSensor>())
+        {
+            if (info is not null && SensorIdentity.IsGenericId(id)) SensorPreferences.Update(config, id, p => p.ShowInWindow = true);
+        }
+    }
 
     private sealed record Row(SensorIdentity Identity, DeviceGroup Group, string? HardwareName)
     {

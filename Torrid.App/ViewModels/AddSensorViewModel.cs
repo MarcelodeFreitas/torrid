@@ -20,17 +20,27 @@ public sealed class AddSensorViewModel : ObservableObject
     public const string CancelledMessage = "The scan was cancelled.";
     public const string NoCatalogMessage = "Scanning for sensors isn't available.";
 
+    /// <summary>The kinds of the built-in cards; a catalog entry they already read is shown as "Already shown".</summary>
+    private static readonly SensorKind[] BuiltInKinds =
+    {
+        SensorKind.CpuPackage, SensorKind.GpuCore, SensorKind.GpuHotSpot, SensorKind.GpuVram,
+    };
+
     private readonly ISensorCatalogSource? _catalog;
     private readonly ConfigManager _config;
+    private readonly Func<IReadOnlyList<SensorReading>?> _currentReadings;
     private readonly RelayCommand _scanCommand;
     private bool _isOpen;
     private bool _isScanning;
     private string? _message;
 
-    public AddSensorViewModel(ISensorCatalogSource? catalog, ConfigManager config)
+    /// <param name="currentReadings">The live readings, used to recognise sensors the built-in cards already show.</param>
+    public AddSensorViewModel(
+        ISensorCatalogSource? catalog, ConfigManager config, Func<IReadOnlyList<SensorReading>?>? currentReadings = null)
     {
         _catalog = catalog;
         _config = config;
+        _currentReadings = currentReadings ?? (() => Array.Empty<SensorReading>());
 
         OpenCommand = new RelayCommand(_ => IsOpen = true);
         CloseCommand = new RelayCommand(_ => Close());
@@ -123,12 +133,13 @@ public sealed class AddSensorViewModel : ObservableObject
         }
 
         var added = _config.Config.AddedSensors ?? new Dictionary<string, AddedSensor>();
+        var builtInSources = BuiltInSources();
         var groups = (result.Sensors ?? Array.Empty<CatalogSensor>())
-            .Where(s => s is not null && SensorIdentity.IsGenericId(s.Id))
+            .Where(s => s is not null && (SensorIdentity.IsGenericId(s.Id) || SensorIdentity.TryParse(s.Id) is not null))
             .GroupBy(s => s.HardwareName ?? "")
             .Select(g => new AddSensorGroupViewModel(
                 string.IsNullOrWhiteSpace(g.Key) ? "Unknown hardware" : g.Key,
-                g.Select(s => new AddSensorItemViewModel(s, added.ContainsKey(s.Id), Add))))
+                g.Select(s => new AddSensorItemViewModel(s, added.ContainsKey(s.Id), Add, IsBuiltIn(s, builtInSources)))))
             .ToList();
         foreach (var group in groups) Groups.Add(group);
 
@@ -139,7 +150,7 @@ public sealed class AddSensorViewModel : ObservableObject
     public void Add(AddSensorItemViewModel item)
     {
         var sensor = item.Sensor;
-        if (!SensorIdentity.IsGenericId(sensor.Id)) return;
+        if (item.IsBuiltIn || !SensorIdentity.IsGenericId(sensor.Id)) return;
 
         if (_config.Config.AddedSensors?.ContainsKey(sensor.Id) == true)
         {
@@ -181,6 +192,34 @@ public sealed class AddSensorViewModel : ObservableObject
         });
         RefreshAddedState();
     }
+
+    /// <summary>(hardware name, source sensor name) of every built-in card reading right now.</summary>
+    private HashSet<(string Hardware, string Sensor)> BuiltInSources()
+    {
+        var sources = new HashSet<(string, string)>();
+        IReadOnlyList<SensorReading>? readings;
+        try
+        {
+            readings = _currentReadings();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"AddSensorViewModel: reading the current sensors failed: {ex}");
+            readings = null;
+        }
+
+        foreach (var reading in readings ?? Array.Empty<SensorReading>())
+        {
+            if (reading is null || SensorIdentity.IsGenericId(reading.Id) || !BuiltInKinds.Contains(reading.Kind)) continue;
+            if (reading.HardwareName is { } hardware && reading.SourceSensorName is { } source) sources.Add((hardware, source));
+        }
+
+        return sources;
+    }
+
+    /// <summary>A built-in id, or the very sensor a built-in card reads (same hardware and sensor name).</summary>
+    private static bool IsBuiltIn(CatalogSensor sensor, HashSet<(string Hardware, string Sensor)> builtInSources) =>
+        !SensorIdentity.IsGenericId(sensor.Id) || builtInSources.Contains((sensor.HardwareName ?? "", sensor.Name ?? ""));
 
     private void Close()
     {

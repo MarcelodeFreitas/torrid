@@ -35,7 +35,7 @@ Settings are stored in `%AppData%\Torrid\config.json`.
 The built-in sensors are the CPU temperature and, per GPU, core / hot spot / memory junction. For anything else (motherboard VRM, chipset, an NVMe drive, memory modules, CPU CCDs or SoC, other GPU sensors):
 
 1. Open **Sensors** and press **Add sensor**. A panel opens above the list.
-2. Press **Scan for sensors**. Torrid lists every temperature sensor it can read, grouped by hardware, with its current value.
+2. Press **Scan for sensors**. Torrid lists every temperature sensor it can read, grouped by hardware, with its current value. Sensors the built-in cards already read (for example the CPU's `Core (Tctl/Tdie)` or a GPU's hot spot) are marked **Already shown** and cannot be added twice.
 3. Press **Add** next to the ones you want. They appear in the list straight away, switched on for the window (tray off, alerts on); change that with the usual switches, and rename them like any other sensor.
 4. To remove one, press the **×** at the end of its row. Built-in sensors cannot be removed, only switched off.
 
@@ -45,7 +45,7 @@ Honest limits:
 
 - **What you can add depends on your hardware.** Torrid only offers what LibreHardwareMonitor can read. Motherboard temperatures come from the board's Super I/O (or embedded controller) chip, and only chips LibreHardwareMonitor supports report anything.
 - **VRM temperature is only available on boards whose chip exposes it.** Many boards have no VRM sensor, or report it under a generic name such as "Temperature #3".
-- **Motherboard, CPU and memory sensors need administrator rights and the PawnIO driver** (see below). Without them the scan may list nothing for those parts, or values read `--`. Storage and GPU sensors do not use PawnIO (storage may still need administrator rights). The scan has only been exercised with demo data here, not on real motherboard, memory or storage hardware.
+- **Motherboard, CPU and memory sensors need administrator rights and the PawnIO driver** (see below). Without them the scan may list nothing for those parts, or values read `--`. Storage and GPU sensors do not use PawnIO (storage may still need administrator rights). A real scan has only been run without administrator rights on one machine (it found the CPU and GPU sensors, but no motherboard, CCD, memory or storage sensors); everything else is verified with demo data only.
 - **"Other sensors" are best effort.** Sensors of hardware Torrid does not classify are shown when the hardware they belong to is already being read, but Torrid does not open extra hardware just for them.
 - **Scanning is manual.** Torrid never scans by itself; a scan briefly opens every hardware group the current anti-cheat setting allows (including PawnIO-backed ones). Scanning is **unavailable while an anti-cheat is running** with the default Pause setting, and covers only GPU and storage in GPU-only mode.
 - **Added motherboard or memory sensors make Torrid use PawnIO for those groups too.** Torrid only opens the hardware groups it needs: with nothing added that is CPU and GPU, exactly as before. Adding a motherboard or memory sensor adds that group (both use PawnIO), and only at the **Keep monitoring** / no-anti-cheat level; **GPU only** never opens them. Details in [docs/anti-cheat.md](docs/anti-cheat.md).

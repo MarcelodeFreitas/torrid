@@ -20,6 +20,8 @@ public sealed class FakeSensorSource : ISensorSource, IHardwareStatusSource, ISe
         {
             ("CCD1 (Tdie)", "/amdcpu/0/temperature/3", 61.0),
             ("CCD2 (Tdie)", "/amdcpu/0/temperature/4", 58.0),
+            // The built-in CPU card's source, as on real hardware: the Add panel shows it as "Already shown".
+            ("Core (Tctl/Tdie)", "/amdcpu/0/temperature/2", 57.0),
             ("SoC", "/amdcpu/0/temperature/6", 47.0),
         }),
         (HardwareType.Motherboard, BoardName, "/lpc/nct6798d/0", new[]

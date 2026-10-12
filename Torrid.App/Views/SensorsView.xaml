@@ -121,7 +121,7 @@
                            VerticalAlignment="Center" Margin="0,0,16,0" Foreground="{StaticResource TextSecondaryBrush}"/>
                 <Button x:Name="AddButton" Grid.Column="2" Style="{StaticResource SecondaryButtonStyle}" MinWidth="88" Padding="12,3" MinHeight="28"
                         FontSize="12" VerticalAlignment="Center" Command="{Binding AddCommand}"
-                        AutomationProperties.Name="{Binding Name, StringFormat='Add {0}'}">
+                        AutomationProperties.Name="{Binding AutomationName}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock x:Name="Glyph" Style="{StaticResource IconTextStyle}" Text="&#xE710;" FontSize="11"
                                    Margin="0,1,6,0" VerticalAlignment="Center"
@@ -137,6 +137,14 @@
                     <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource ZoneGreenBrush}"/>
                     <Setter TargetName="AddButton" Property="Background" Value="Transparent"/>
                     <Setter TargetName="AddButton" Property="BorderBrush" Value="Transparent"/>
+                </DataTrigger>
+                <!-- A sensor a built-in card already reads: a muted "Already shown" status, never addable. -->
+                <DataTrigger Binding="{Binding IsBuiltIn}" Value="True">
+                    <Setter TargetName="Glyph" Property="Visibility" Value="Collapsed"/>
+                    <Setter TargetName="AddButton" Property="Background" Value="Transparent"/>
+                    <Setter TargetName="AddButton" Property="BorderBrush" Value="Transparent"/>
+                    <Setter TargetName="AddButton" Property="ToolTip" Value="A built-in card already shows this sensor"/>
+                    <Setter TargetName="AddButton" Property="ToolTipService.ShowOnDisabled" Value="True"/>
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
@@ -206,7 +214,7 @@
             </StackPanel>
         </Grid>
 
-        <ScrollViewer Grid.Row="1" Margin="0,24,0,0" VerticalScrollBarVisibility="Auto"
+        <ScrollViewer x:Name="ListScroller" Grid.Row="1" Margin="0,24,0,0" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled" Focusable="False">
             <StackPanel Margin="0,0,14,8">
                 <!-- Inline Add sensor panel (not a dialog): a card above the list, only while open. -->
@@ -218,7 +226,8 @@
                                    Foreground="{StaticResource TextSecondaryBrush}" MaxWidth="640" HorizontalAlignment="Left"
                                    Text="Scans your hardware for temperature sensors. Scanning briefly accesses the hardware drivers (including PawnIO for motherboard and memory sensors) and is unavailable while an anti-cheat is running."/>
                         <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                            <Button Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ScanCommand}" MinWidth="156">
+                            <Button x:Name="ScanButton" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ScanCommand}" MinWidth="156"
+                                    AutomationProperties.Name="{Binding ScanButtonText}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE721;" FontSize="12" Margin="0,1,8,0"
                                                VerticalAlignment="Center"
@@ -226,10 +235,11 @@
                                     <TextBlock Text="{Binding ScanButtonText}" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Close" Margin="8,0,0,0" MinWidth="80"
+                            <Button x:Name="CloseAddPanelButton" Style="{StaticResource SecondaryButtonStyle}" Content="Close" Margin="8,0,0,0" MinWidth="80"
                                     Command="{Binding CloseCommand}" ToolTip="Close the panel and discard the scan results"/>
                         </StackPanel>
                         <TextBlock Text="{Binding Message}" Margin="2,14,0,0" FontSize="13" TextWrapping="Wrap"
+                                   AutomationProperties.LiveSetting="Polite"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    Visibility="{Binding HasMessage, Converter={StaticResource BoolToVisibility}}"/>
                         <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource AddSensorGroupTemplate}"

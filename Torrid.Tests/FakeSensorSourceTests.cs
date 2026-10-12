@@ -20,6 +20,8 @@ public class FakeSensorSourceTests
             {
                 ("CCD1 (Tdie)", "AMD Ryzen 9 5950X", SensorKind.CpuOther),
                 ("CCD2 (Tdie)", "AMD Ryzen 9 5950X", SensorKind.CpuOther),
+                // The built-in CPU card's own source: the Add panel shows it as "Already shown".
+                ("Core (Tctl/Tdie)", "AMD Ryzen 9 5950X", SensorKind.CpuOther),
                 ("SoC", "AMD Ryzen 9 5950X", SensorKind.CpuOther),
                 ("Chipset", "ASUS ROG CROSSHAIR VIII", SensorKind.Motherboard),
                 ("System", "ASUS ROG CROSSHAIR VIII", SensorKind.Motherboard),
