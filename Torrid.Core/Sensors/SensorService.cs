@@ -173,6 +173,8 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, ISenso
             var groups = HardwareGroupsPolicy.ForLevel(status.Level);
             if (status.Level == HardwareAccessLevel.Paused || groups == HardwareGroups.None)
             {
+                // An anti-cheat started since the last poll: release the live hardware now rather than on the next tick.
+                CloseComputer();
                 return SensorCatalogResult.PausedFor(status.AntiCheat);
             }
 

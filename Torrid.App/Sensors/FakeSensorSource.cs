@@ -75,6 +75,9 @@ public sealed class FakeSensorSource : ISensorSource, IHardwareStatusSource, ISe
     /// <summary>The deterministic demo catalog, following the same anti-cheat rules as the real scan.</summary>
     public Task<SensorCatalogResult> ScanAsync(CancellationToken ct = default)
     {
+        // Same cancellation contract as the real scan (see ISensorCatalogSource.ScanAsync): a cancelled task.
+        if (ct.IsCancellationRequested) return Task.FromCanceled<SensorCatalogResult>(ct);
+
         if (Status.Level == HardwareAccessLevel.Paused)
         {
             return Task.FromResult(SensorCatalogResult.PausedFor(Status.AntiCheat));

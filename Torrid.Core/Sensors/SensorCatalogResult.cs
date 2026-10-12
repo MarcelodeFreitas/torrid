@@ -17,5 +17,10 @@ public sealed record SensorCatalogResult(IReadOnlyList<CatalogSensor> Sensors, s
 /// <summary>Lists every temperature sensor that can be added. Implementations never block the caller's thread.</summary>
 public interface ISensorCatalogSource
 {
+    /// <summary>Scans for temperature sensors. Refusals and failures are reported in the result, not thrown.</summary>
+    /// <remarks>
+    /// May throw <see cref="OperationCanceledException"/> (the returned task is cancelled) if <paramref name="ct"/> is
+    /// cancelled before hardware is opened; once the scan has opened hardware it runs to completion.
+    /// </remarks>
     Task<SensorCatalogResult> ScanAsync(CancellationToken ct = default);
 }

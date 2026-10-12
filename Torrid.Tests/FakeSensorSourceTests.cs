@@ -36,6 +36,16 @@ public class FakeSensorSourceTests
     }
 
     [Fact]
+    public async Task ScanAsync_WithACancelledToken_IsCancelledLikeTheRealScan()
+    {
+        var source = new FakeSensorSource();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => source.ScanAsync(cts.Token));
+    }
+
+    [Fact]
     public async Task ScanAsync_WhilePaused_ReturnsTheReasonAndNoSensors()
     {
         var source = new FakeSensorSource

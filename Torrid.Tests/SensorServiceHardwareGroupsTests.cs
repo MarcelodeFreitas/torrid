@@ -241,14 +241,32 @@ public class SensorServiceHardwareGroupsTests
     [Fact]
     public void AddedSensorsDelegateThrowing_IsTreatedAsNothingAdded()
     {
-        using var rig = new Rig();
-        var service = new SensorService(60_000, () => AntiCheatBehavior.Pause, () => Array.Empty<string>(), rig.Lister,
-            () => throw new InvalidOperationException("config"), rig.Hardware.Open);
+        var hardware = new FakeHardware();
+        var service = new SensorService(60_000, () => AntiCheatBehavior.Pause, () => Array.Empty<string>(), new MutableLister(),
+            () => throw new InvalidOperationException("config"), hardware.Open);
         using (service)
         {
-            Assert.Equal(HardwareGroups.Cpu | HardwareGroups.Gpu, rig.Hardware.Opened[^1]);
+            service.PollNow();
+
+            Assert.Equal(new[] { HardwareGroups.Cpu | HardwareGroups.Gpu }, hardware.Opened);
             Assert.Equal(4, service.CurrentReadings.Count);
         }
+    }
+
+    [Fact]
+    public async Task Scan_WhenAnAntiCheatStartedAfterTheLiveComputerOpened_ClosesTheLiveComputer()
+    {
+        using var rig = new Rig();
+        Assert.Equal(1, rig.Hardware.OpenNow);
+
+        rig.Lister.Running = new[] { "vgc" };
+        var result = await rig.Service.ScanAsync();
+
+        Assert.Equal("Monitoring is paused while Riot Vanguard is running.", result.UnavailableReason);
+        Assert.Empty(result.Sensors);
+        Assert.Single(rig.Hardware.Opened);
+        Assert.Equal(1, rig.Hardware.Closed);
+        Assert.Equal(0, rig.Hardware.OpenNow);
     }
 
     [Fact]
