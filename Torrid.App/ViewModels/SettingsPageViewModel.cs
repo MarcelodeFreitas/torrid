@@ -45,7 +45,7 @@ public sealed class SettingsPageViewModel : ObservableObject
             new AntiCheatChoice(AntiCheatBehavior.Pause, "Pause monitoring (recommended)",
                 "Stop reading all sensors until the game closes. Nothing touches the hardware."),
             new AntiCheatChoice(AntiCheatBehavior.GpuOnly, "GPU only — no PawnIO driver",
-                "Keep GPU temperatures; CPU temperature (the part that needs the PawnIO driver) pauses."),
+                "Keep GPU and storage temperatures; CPU, motherboard and memory temperatures (the parts that need the PawnIO driver) pause."),
             new AntiCheatChoice(AntiCheatBehavior.Continue, "Keep monitoring",
                 "Ignore the anti-cheat. Some games may refuse to start or kick you."),
         };

@@ -31,7 +31,7 @@ You choose the behaviour under **Settings, Anti-cheat compatibility, When an ant
 | Behaviour | What happens | Notes |
 |---|---|---|
 | **Pause monitoring** (default) | Torrid closes the hardware entirely and stops reading. Sensors show as paused, the tray tooltip says `paused (<product> is running)`, and no alerts are raised. When the anti-cheat exits, monitoring resumes by itself. | The safest option. You get no temperatures while the game is running. |
-| **GPU only** | Torrid keeps reading GPU temperatures and stops reading the CPU. It no longer enables the CPU hardware, which is the part that uses the PawnIO driver. | You keep GPU temperatures during the game. Whether avoiding the CPU path is enough to satisfy a given anti-cheat is not known. |
+| **GPU only** | Torrid keeps reading GPU temperatures and stops reading the CPU. It no longer enables the CPU, motherboard and memory hardware, which are the parts that use PawnIO. | You keep GPU temperatures during the game. Whether avoiding the CPU path is enough to satisfy a given anti-cheat is not known. |
 | **Keep monitoring** | Nothing changes. Torrid only records that an anti-cheat was detected so the UI can say so. | Some games may refuse to start or may remove you from a match. Use at your own risk. |
 
 ## Which hardware Torrid opens
@@ -46,7 +46,7 @@ LibreHardwareMonitor reads hardware in groups, and Torrid only opens the groups 
 
 - CPU, Motherboard and Memory are the groups that use the **PawnIO** driver (CPU registers, the Super I/O chip, the SMBus). **GPU only never opens any of them**, whatever you have added.
 - With nothing added, Torrid opens exactly what it always did: CPU and GPU at Full, GPU at GPU only, nothing when paused.
-- **Adding a motherboard or memory sensor makes Torrid use PawnIO for that group as well**, at the Full level only. Remove the sensor (the × on its row) and the group is closed again.
+- **Adding a motherboard or memory sensor makes Torrid use PawnIO for that group as well**, at the Full level only. Remove the last sensor of that kind (the × on its row) and the group is closed again.
 - **Scanning** (Sensors, Add sensor, Scan for sensors) only happens when you press the button. It briefly opens every group the current level allows (all five at Full, GPU and storage at GPU only) and closes them again; while monitoring is paused it is refused and touches nothing.
 
 ## How detection works

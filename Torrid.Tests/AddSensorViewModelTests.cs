@@ -208,6 +208,36 @@ public class AddSensorViewModelTests
     }
 
     [Fact]
+    public void Open_RaisesOpenRequested_OnEveryInvocation_EvenWhenAlreadyOpen()
+    {
+        var (vm, _, _) = Make();
+        var requests = 0;
+        vm.OpenRequested += (_, _) => requests++;
+
+        vm.OpenCommand.Execute(null);
+        vm.OpenCommand.Execute(null);
+        vm.OpenCommand.Execute(null);
+
+        Assert.True(vm.IsOpen);
+        Assert.Equal(3, requests);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Add_WithABlankCatalogName_FallsBackToTheTailOfTheId(string blank)
+    {
+        var (vm, _, manager) = Make();
+        var sensor = new CatalogSensor(VrmId, blank, Board, SensorKind.Motherboard, 50);
+        var item = new AddSensorItemViewModel(sensor, false, vm.Add, false);
+
+        vm.Add(item);
+
+        Assert.Equal("4", manager.Config.AddedSensors[VrmId].Name);
+        Assert.True(item.IsAdded);
+    }
+
+    [Fact]
     public async Task AlreadyAddedSensors_ShowAsAdded_AndAddingAgainIsANoOp()
     {
         var config = new AppConfig();

@@ -391,7 +391,7 @@ public class HomeViewModelTests
 
         source.SetStatus(new HardwareStatus(HardwareAccessLevel.GpuOnly, new AntiCheatMatch("Riot Vanguard", "vgc")));
 
-        Assert.StartsWith("CPU temperature is hidden while Riot Vanguard is running", vm.StatusMessage);
+        Assert.Equal("CPU, motherboard and memory temperatures are hidden while Riot Vanguard is running. GPU and storage temperatures keep updating.", vm.StatusMessage);
     }
 
     [Fact]

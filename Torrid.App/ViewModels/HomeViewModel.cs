@@ -84,7 +84,7 @@ public sealed class HomeViewModel : ObservableObject
             HardwareAccessLevel.Paused =>
                 $"Monitoring paused while {name} is running. Readings resume automatically when it closes.",
             HardwareAccessLevel.GpuOnly =>
-                $"CPU temperature is hidden while {name} is running. GPU temperatures keep updating.",
+                $"CPU, motherboard and memory temperatures are hidden while {name} is running. GPU and storage temperatures keep updating.",
             _ => null,
         };
     }

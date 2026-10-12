@@ -30,11 +30,13 @@ public class SensorServiceHardwareGroupsTests
         public int Closed { get; private set; }
         public int OpenNow { get; private set; }
         public int MaxOpenAtOnce { get; private set; }
+        public int OpenAttempts { get; private set; }
         public Exception? ThrowOnOpen { get; set; }
         public Exception? ThrowOnRead { get; set; }
 
         public IHardwareComputer Open(HardwareGroups groups)
         {
+            OpenAttempts++;
             if (ThrowOnOpen is not null) throw ThrowOnOpen;
             Opened.Add(groups);
             OpenNow++;
@@ -355,6 +357,33 @@ public class SensorServiceHardwareGroupsTests
         Assert.Empty(result.Sensors);
         Assert.Equal("Couldn't scan hardware: driver gone", result.UnavailableReason);
         Assert.Equal(0, rig.Hardware.OpenNow);
+    }
+
+    [Fact]
+    public void Poll_WhoseOpenThrows_LeavesStateConsistent_AndTheNextPollRetriesExactlyOnce()
+    {
+        using var rig = new Rig(r => r.Hardware.ThrowOnOpen = new InvalidOperationException("driver failed"));
+        var attemptsAfterConstruction = rig.Hardware.OpenAttempts;
+
+        rig.Service.PollNow();
+
+        Assert.Equal(attemptsAfterConstruction + 1, rig.Hardware.OpenAttempts);
+        Assert.Empty(rig.Hardware.Opened);
+        Assert.Equal(0, rig.Hardware.OpenNow);
+        Assert.All(rig.Service.CurrentReadings, r => Assert.Null(r.ValueCelsius));
+
+        rig.Hardware.ThrowOnOpen = null;
+        rig.Service.PollNow();
+
+        Assert.Equal(attemptsAfterConstruction + 2, rig.Hardware.OpenAttempts);
+        Assert.Equal(new[] { HardwareGroups.Cpu | HardwareGroups.Gpu }, rig.Hardware.Opened);
+        Assert.Equal(1, rig.Hardware.OpenNow);
+        Assert.Contains(rig.Service.CurrentReadings, r => r.ValueCelsius is not null);
+
+        rig.Service.PollNow();
+
+        Assert.Equal(attemptsAfterConstruction + 2, rig.Hardware.OpenAttempts);
+        Assert.Equal(0, rig.Hardware.Closed);
     }
 
     [Fact]

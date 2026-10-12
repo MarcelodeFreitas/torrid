@@ -113,14 +113,14 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="{StaticResource ValueColumnWidth}"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="96"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding Name}" FontSize="14" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" Margin="0,0,12,0"/>
                 <TextBlock Grid.Column="1" Text="{Binding ValueText}" FontSize="13" HorizontalAlignment="Right"
                            VerticalAlignment="Center" Margin="0,0,16,0" Foreground="{StaticResource TextSecondaryBrush}"/>
-                <Button x:Name="AddButton" Grid.Column="2" Style="{StaticResource SecondaryButtonStyle}" MinWidth="88" Padding="12,3" MinHeight="28"
-                        FontSize="12" VerticalAlignment="Center" Command="{Binding AddCommand}"
+                <Button x:Name="AddButton" Grid.Column="2" Style="{StaticResource SecondaryButtonStyle}" Width="96" Padding="8,3" MinHeight="28"
+                        FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right" Command="{Binding AddCommand}"
                         AutomationProperties.Name="{Binding AutomationName}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock x:Name="Glyph" Style="{StaticResource IconTextStyle}" Text="&#xE710;" FontSize="11"
@@ -224,7 +224,7 @@
                         <TextBlock Text="Add a sensor" Style="{StaticResource CardTitleStyle}"/>
                         <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,6,0,0" FontSize="13"
                                    Foreground="{StaticResource TextSecondaryBrush}" MaxWidth="640" HorizontalAlignment="Left"
-                                   Text="Scans your hardware for temperature sensors. Scanning briefly accesses the hardware drivers (including PawnIO for motherboard and memory sensors) and is unavailable while an anti-cheat is running."/>
+                                   Text="Scans your hardware for temperature sensors. Scanning briefly accesses the hardware drivers (including PawnIO for motherboard and memory sensors). It is unavailable while monitoring is paused for an anti-cheat, and in GPU-only mode it scans only GPU and storage."/>
                         <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                             <Button x:Name="ScanButton" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ScanCommand}" MinWidth="156"
                                     AutomationProperties.Name="{Binding ScanButtonText}">

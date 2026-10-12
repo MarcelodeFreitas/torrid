@@ -1,6 +1,5 @@
 namespace Torrid.App.Views;
 
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -26,15 +25,14 @@ public partial class SensorsView : UserControl
     /// </summary>
     private void WatchAddSensorPanel(AddSensorViewModel? addSensor)
     {
-        if (_addSensor is not null) _addSensor.PropertyChanged -= OnAddSensorChanged;
+        if (_addSensor is not null) _addSensor.OpenRequested -= OnOpenRequested;
         _addSensor = addSensor;
-        if (_addSensor is not null) _addSensor.PropertyChanged += OnAddSensorChanged;
+        if (_addSensor is not null) _addSensor.OpenRequested += OnOpenRequested;
     }
 
-    private void OnAddSensorChanged(object? sender, PropertyChangedEventArgs e)
+    // Raised on every press of Add sensor, so it also works when the panel is already open (no IsOpen change then).
+    private void OnOpenRequested(object? sender, EventArgs e)
     {
-        if (e.PropertyName != nameof(AddSensorViewModel.IsOpen) || _addSensor?.IsOpen != true) return;
-
         // After the panel's visibility change has been laid out, so the buttons can take focus.
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
         {

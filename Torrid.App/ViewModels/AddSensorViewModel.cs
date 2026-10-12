@@ -42,7 +42,11 @@ public sealed class AddSensorViewModel : ObservableObject
         _config = config;
         _currentReadings = currentReadings ?? (() => Array.Empty<SensorReading>());
 
-        OpenCommand = new RelayCommand(_ => IsOpen = true);
+        OpenCommand = new RelayCommand(_ =>
+        {
+            IsOpen = true;
+            OpenRequested?.Invoke(this, EventArgs.Empty);
+        });
         CloseCommand = new RelayCommand(_ => Close());
         _scanCommand = new RelayCommand(_ => _ = ScanAsync(), _ => !IsScanning);
 
@@ -84,6 +88,12 @@ public sealed class AddSensorViewModel : ObservableObject
     public ObservableCollection<AddSensorGroupViewModel> Groups { get; } = new();
 
     public ICommand OpenCommand { get; }
+
+    /// <summary>
+    /// Raised on every Open invocation, even when the panel is already open (IsOpen then does not change), so the view
+    /// can bring the panel back into view and refocus it.
+    /// </summary>
+    public event EventHandler? OpenRequested;
 
     public ICommand CloseCommand { get; }
 
@@ -158,12 +168,15 @@ public sealed class AddSensorViewModel : ObservableObject
             return;
         }
 
+        // Never store a blank name (Normalize would drop the entry on the next load): fall back to the id's last segment.
+        var name = string.IsNullOrWhiteSpace(sensor.Name) ? sensor.Id[(sensor.Id.LastIndexOf('/') + 1)..] : sensor.Name;
+
         _config.Update(c =>
         {
             // Replace, never mutate: the poll thread holds the previous dictionary by reference.
             c.AddedSensors = new Dictionary<string, AddedSensor>(c.AddedSensors ?? new Dictionary<string, AddedSensor>())
             {
-                [sensor.Id] = new AddedSensor { Name = sensor.Name, HardwareName = sensor.HardwareName, Kind = sensor.Kind },
+                [sensor.Id] = new AddedSensor { Name = name, HardwareName = sensor.HardwareName, Kind = sensor.Kind },
             };
             SensorPreferences.Update(c, sensor.Id, p => p.ShowInWindow = true);
         });

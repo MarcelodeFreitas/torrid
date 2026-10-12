@@ -36,7 +36,10 @@ internal sealed class LhmHardwareComputer : IHardwareComputer
         }
         catch
         {
-            try { computer.Close(); } catch { /* best effort: don't leak a half-opened Computer */ }
+            // Best effort only. LibreHardwareMonitor's Computer.Close() returns early when Open() never completed (its
+            // internal open flag is still false), so a half-opened Computer is NOT cleaned up by this call; it is kept
+            // for symmetry and in case a future version tears down partially opened hardware.
+            try { computer.Close(); } catch { /* ignore */ }
             throw;
         }
 

@@ -110,7 +110,7 @@
                         <TextBlock Text="CPU temperature driver (PawnIO)" Style="{StaticResource CardTitleStyle}"/>
                         <TextBlock Style="{StaticResource CaptionTextStyle}" FontSize="13" Margin="0,6,0,0"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="CPU temperature is read through the separate PawnIO driver. GPU temperatures do not need it."/>
+                                   Text="CPU, motherboard and memory temperatures are read through the separate PawnIO driver. GPU and storage temperatures do not need it."/>
 
                         <!-- Status pill: green = current, amber = missing or old, grey = couldn't check -->
                         <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="6" HorizontalAlignment="Left"
