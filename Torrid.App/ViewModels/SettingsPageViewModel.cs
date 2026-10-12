@@ -26,10 +26,11 @@ public sealed class SettingsPageViewModel : ObservableObject
     private string _hardwareStatusText = "";
     private bool _isAntiCheatDetected;
 
-    public SettingsPageViewModel(ConfigManager config, IHardwareStatusSource hardware)
+    public SettingsPageViewModel(ConfigManager config, IHardwareStatusSource hardware, Action sendTestNotification)
     {
         _config = config;
         _hardware = hardware;
+        SendTestNotificationCommand = new RelayCommand(_ => sendTestNotification());
 
         AntiCheatChoices = new[]
         {
@@ -124,6 +125,9 @@ public sealed class SettingsPageViewModel : ObservableObject
     public bool IsAntiCheatDetected { get => _isAntiCheatDetected; private set => Set(ref _isAntiCheatDetected, value); }
 
     public string KnownProductsText { get; }
+
+    /// <summary>Shows a test toast so the user can check that alerts reach them.</summary>
+    public ICommand SendTestNotificationCommand { get; }
 
     public static string DescribeStatus(HardwareStatus status)
     {

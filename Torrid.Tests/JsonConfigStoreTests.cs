@@ -124,6 +124,20 @@ public class JsonConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_DoesNotWriteTheComputedIsEmptyProperty()
+    {
+        var store = new JsonConfigStore(_path);
+        var config = new AppConfig();
+        config.Sensors["cpu"] = new SensorPreference { Label = "5950X", ShowInTray = false };
+
+        store.Save(config);
+
+        var json = File.ReadAllText(_path);
+        Assert.Contains("5950X", json);
+        Assert.DoesNotContain("IsEmpty", json);
+    }
+
+    [Fact]
     public void SaveThenLoad_RoundTripsCustomValues()
     {
         var store = new JsonConfigStore(_path);

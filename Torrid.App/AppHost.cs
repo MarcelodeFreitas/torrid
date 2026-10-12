@@ -1,5 +1,6 @@
 namespace Torrid.App;
 
+using System.Diagnostics;
 using System.Windows;
 using Torrid.App.Notifications;
 using Torrid.App.Sensors;
@@ -17,12 +18,17 @@ using Torrid.Core.Time;
 /// </summary>
 public sealed class AppHost : IDisposable
 {
+    private readonly WindowsToastNotifier _toasts;
     private MainWindow? _window;
     private bool _disposed;
 
     public AppHost(StartupOptions options)
     {
-        ConfigManager = new ConfigManager(new JsonConfigStore(options.ConfigPath));
+        // A demo without an explicit --config must never read or overwrite the user's real settings.
+        IConfigStore store = options.Demo && options.ConfigPath is null
+            ? new TransientConfigStore()
+            : new JsonConfigStore(options.ConfigPath);
+        ConfigManager = new ConfigManager(store);
         var config = ConfigManager.Config;
 
         if (options.Demo)
@@ -48,28 +54,31 @@ public sealed class AppHost : IDisposable
             Hardware = service;
         }
 
-        Notifications = new NotificationService(new WindowsToastNotifier(), new SystemClock(), config.NotificationRefireMinutes);
+        _toasts = new WindowsToastNotifier();
+        Notifications = new NotificationService(_toasts, new SystemClock(), config.NotificationRefireMinutes);
+        // ReadingsUpdated fires on the sensor timer thread; alerts are only ever evaluated on the UI thread.
         Sensors.ReadingsUpdated += (_, readings) => UiThread.Post(() => EvaluateNotifications(readings));
 
         Home = new HomeViewModel(Sensors, Hardware, ConfigManager);
         SensorsPage = new SensorsViewModel(Sensors, ConfigManager);
         ThresholdsPage = new ThresholdsViewModel(ConfigManager);
-        SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware);
+        SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware, SendTestNotification);
         Shell = new ShellViewModel(new[]
         {
-            new NavItem(PageId.Home, "Home", "\uE80F", Home),
-            new NavItem(PageId.Sensors, "Sensors", "\uE9CA", SensorsPage),
-            new NavItem(PageId.Thresholds, "Thresholds", "\uE790", ThresholdsPage),
-            new NavItem(PageId.Settings, "Settings", "\uE713", SettingsPage),
+            new NavItem(PageId.Home, "Home", "", Home),
+            new NavItem(PageId.Sensors, "Sensors", "", SensorsPage),
+            new NavItem(PageId.Thresholds, "Thresholds", "", ThresholdsPage),
+            new NavItem(PageId.Settings, "Settings", "", SettingsPage),
         });
         if (options.InitialPage is PageId initialPage) Shell.Navigate(initialPage);
 
         // Edits apply live: the page view models write through ConfigManager.Update, which raises Changed.
         ConfigManager.Changed += (_, _) => UiThread.Post(ApplyLiveSettings);
 
-        Tray = new TrayIconGroupManager(Sensors, config);
-        Tray.TrayIconClicked += (_, _) => ShowMainWindow();
-        Tray.SettingsRequested += (_, _) => ShowMainWindow();
+        Tray = new TrayIconGroupManager(Sensors, ConfigManager, Hardware);
+        Tray.TrayIconClicked += (_, _) => ShowMainWindow(PageId.Home);
+        Tray.OpenRequested += (_, _) => ShowMainWindow();
+        Tray.SettingsRequested += (_, _) => ShowMainWindow(PageId.Settings);
         Tray.ExitRequested += (_, _) => Exit();
     }
 
@@ -107,8 +116,14 @@ public sealed class AppHost : IDisposable
         _window.Activate();
     }
 
+    /// <summary>Shows a "Torrid test notification" toast through the same notifier that delivers alerts.</summary>
+    public void SendTestNotification() => _toasts.ShowTestNotification();
+
+    /// <summary>Really quits (tray "Exit"): saves pending settings first, then shuts down; OnExit disposes this host.</summary>
     public void Exit()
     {
+        ConfigManager.Flush();
+
         if (_window is not null)
         {
             _window.ExitApplication();
@@ -124,10 +139,31 @@ public sealed class AppHost : IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        Sensors.Stop();
-        (Sensors as IDisposable)?.Dispose();
-        Tray.Dispose();
-        ConfigManager.Dispose(); // flushes a pending debounced save
+        // Each teardown step is isolated so a failing sensor source or tray can never skip the config flush.
+        try
+        {
+            Sensors.Stop();
+            (Sensors as IDisposable)?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Stopping the sensor source failed: {ex}");
+        }
+        finally
+        {
+            try
+            {
+                Tray.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Disposing the tray failed: {ex}");
+            }
+            finally
+            {
+                ConfigManager.Dispose(); // flushes a pending debounced save
+            }
+        }
     }
 
     private void ApplyLiveSettings()
@@ -147,6 +183,8 @@ public sealed class AppHost : IDisposable
     {
         if (_disposed) return;
 
+        // Labels are resolved before Evaluate so alerts use the user's names; sensors with alerts off are skipped.
+        // Null readings never alert (NotificationService skips them).
         var config = ConfigManager.Config;
         var notifiable = readings
             .Where(r => SensorDisplay.NotificationsEnabled(config, r))

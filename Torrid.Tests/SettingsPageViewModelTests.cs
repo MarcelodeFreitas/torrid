@@ -6,11 +6,27 @@ namespace Torrid.Tests;
 
 public class SettingsPageViewModelTests
 {
-    private static (SettingsPageViewModel Vm, ConfigManager Config, FakeSensorSourceForTests Hardware) Make(AppConfig? config = null)
+    private static (SettingsPageViewModel Vm, ConfigManager Config, FakeSensorSourceForTests Hardware) Make(
+        AppConfig? config = null, Action? sendTestNotification = null)
     {
         var hardware = new FakeSensorSourceForTests();
         var manager = new ConfigManager(new InMemoryConfigStore(), config ?? new AppConfig(), TimeSpan.Zero);
-        return (new SettingsPageViewModel(manager, hardware), manager, hardware);
+        return (new SettingsPageViewModel(manager, hardware, sendTestNotification ?? (() => { })), manager, hardware);
+    }
+
+    [Fact]
+    public void SendTestNotificationCommand_CallsTheActionOncePerExecute()
+    {
+        var calls = 0;
+        var (vm, config, _) = Make(sendTestNotification: () => calls++);
+
+        Assert.Equal(0, calls);
+        Assert.True(vm.SendTestNotificationCommand.CanExecute(null));
+
+        vm.SendTestNotificationCommand.Execute(null);
+
+        Assert.Equal(1, calls);
+        Assert.Empty(config.Config.Sensors);
     }
 
     [Theory]

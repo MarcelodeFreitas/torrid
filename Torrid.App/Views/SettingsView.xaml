@@ -104,6 +104,26 @@
                     </StackPanel>
                 </Border>
 
+                <!-- ===== Notifications ===== -->
+                <Border Style="{StaticResource SectionCardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Notifications" Style="{StaticResource CardTitleStyle}" Margin="0,0,0,14"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                <TextBlock Text="Test alerts" Style="{StaticResource SettingTitleStyle}"/>
+                                <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                           Text="Shows a sample Windows notification so you can check alerts reach you. The first test after installing can take up to a minute to appear."/>
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource SecondaryButtonStyle}" VerticalAlignment="Center"
+                                    Content="Send test notification" Command="{Binding SendTestNotificationCommand}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <!-- ===== Startup ===== -->
                 <Border Style="{StaticResource SectionCardStyle}">
                     <StackPanel>

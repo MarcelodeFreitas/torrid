@@ -65,6 +65,18 @@ public class StartupOptionsTests
     }
 
     [Fact]
+    public void TestToast_IsParsedCaseInsensitively_AndOffByDefault()
+    {
+        Assert.False(StartupOptions.Parse(Array.Empty<string>()).TestToast);
+
+        var options = StartupOptions.Parse(new[] { "--Test-Toast", "--config", @"C:\temp\c.json" });
+
+        Assert.True(options.TestToast);
+        Assert.Equal(@"C:\temp\c.json", options.ConfigPath);
+        Assert.False(options.Demo);
+    }
+
+    [Fact]
     public void ConfigFlagWithoutValue_IsIgnored()
     {
         Assert.Null(StartupOptions.Parse(new[] { "--config" }).ConfigPath);

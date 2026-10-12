@@ -3,6 +3,7 @@ namespace Torrid.App.Tray;
 using System.Windows.Forms;
 using Torrid.Core.Config;
 using Torrid.Core.Models;
+using Torrid.Core.Sensors;
 
 public sealed class SensorTrayIcon : IDisposable
 {
@@ -26,11 +27,11 @@ public sealed class SensorTrayIcon : IDisposable
 
     public void AttachContextMenu(System.Windows.Forms.ContextMenuStrip menu) => _notifyIcon.ContextMenuStrip = menu;
 
-    public void UpdateVisual(SensorReading reading, string label, ThresholdBand thresholds, bool blinkOn)
+    public void UpdateVisual(SensorReading reading, string label, ThresholdBand thresholds, bool blinkOn, HardwareStatus status)
     {
         var icon = _renderer.Render(reading.ValueCelsius, thresholds, blinkOn);
         _notifyIcon.Icon = icon;
-        _notifyIcon.Text = TooltipTextBuilder.Build(new[] { reading with { Label = label } });
+        _notifyIcon.Text = TooltipTextBuilder.Build(new[] { reading with { Label = label } }, status);
 
         if (_previousIconHandle != nint.Zero) NativeMethods.DestroyIcon(_previousIconHandle);
         _previousIconHandle = icon.Handle;
