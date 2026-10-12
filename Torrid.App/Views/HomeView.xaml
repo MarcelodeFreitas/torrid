@@ -85,17 +85,29 @@
                        Text="Live temperatures — choose what shows up on the Sensors page."/>
         </StackPanel>
 
-        <!-- Anti-cheat banner -->
-        <Border Grid.Row="1" Margin="0,20,24,0" Padding="14,11" CornerRadius="8" BorderThickness="1"
-                Background="{StaticResource BannerBackgroundBrush}" BorderBrush="{StaticResource BannerBorderBrush}"
-                Visibility="{Binding HasStatusMessage, Converter={StaticResource BoolToVisibility}}">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Left" Style="{StaticResource IconTextStyle}" Text="&#xE946;" FontSize="16"
-                           Foreground="{StaticResource BannerTextBrush}" VerticalAlignment="Top" Margin="0,1,12,0"/>
-                <TextBlock Text="{Binding StatusMessage}" FontSize="13" TextWrapping="Wrap"
-                           Foreground="{StaticResource BannerTextBrush}" VerticalAlignment="Center"/>
-            </DockPanel>
-        </Border>
+        <!-- Banners: anti-cheat status, and a second quiet line when the PawnIO driver is missing -->
+        <StackPanel Grid.Row="1">
+            <Border Margin="0,20,24,0" Padding="14,11" CornerRadius="8" BorderThickness="1"
+                    Background="{StaticResource BannerBackgroundBrush}" BorderBrush="{StaticResource BannerBorderBrush}"
+                    Visibility="{Binding HasStatusMessage, Converter={StaticResource BoolToVisibility}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource IconTextStyle}" Text="&#xE946;" FontSize="16"
+                               Foreground="{StaticResource BannerTextBrush}" VerticalAlignment="Top" Margin="0,1,12,0"/>
+                    <TextBlock Text="{Binding StatusMessage}" FontSize="13" TextWrapping="Wrap"
+                               Foreground="{StaticResource BannerTextBrush}" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
+            <Border Margin="0,20,24,0" Padding="14,11" CornerRadius="8" BorderThickness="1"
+                    Background="{StaticResource BannerBackgroundBrush}" BorderBrush="{StaticResource BannerBorderBrush}"
+                    Visibility="{Binding HasDriverMessage, Converter={StaticResource BoolToVisibility}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource IconTextStyle}" Text="&#xE946;" FontSize="16"
+                               Foreground="{StaticResource BannerTextBrush}" VerticalAlignment="Top" Margin="0,1,12,0"/>
+                    <TextBlock Text="{Binding DriverMessage}" FontSize="13" TextWrapping="Wrap"
+                               Foreground="{StaticResource BannerTextBrush}" VerticalAlignment="Center"/>
+                </DockPanel>
+            </Border>
+        </StackPanel>
 
         <!-- Device groups -->
         <ScrollViewer Grid.Row="2" Margin="0,24,0,0" VerticalScrollBarVisibility="Auto"

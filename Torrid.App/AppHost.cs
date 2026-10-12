@@ -2,6 +2,7 @@ namespace Torrid.App;
 
 using System.Diagnostics;
 using System.Windows;
+using Torrid.App.Drivers;
 using Torrid.App.Notifications;
 using Torrid.App.Sensors;
 using Torrid.App.Tray;
@@ -59,10 +60,13 @@ public sealed class AppHost : IDisposable
         // ReadingsUpdated fires on the sensor timer thread; alerts are only ever evaluated on the UI thread.
         Sensors.ReadingsUpdated += (_, readings) => UiThread.Post(() => EvaluateNotifications(readings));
 
-        Home = new HomeViewModel(Sensors, Hardware, ConfigManager);
+        // Detected once here; the Settings "Re-check" button asks again. Read-only: Torrid never installs a driver.
+        PawnIo = new PawnIoStatusTracker(options.Demo ? new DemoPawnIoDetector() : new RegistryPawnIoDetector());
+
+        Home = new HomeViewModel(Sensors, Hardware, ConfigManager, PawnIo);
         SensorsPage = new SensorsViewModel(Sensors, ConfigManager);
         ThresholdsPage = new ThresholdsViewModel(ConfigManager);
-        SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware, SendTestNotification);
+        SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware, SendTestNotification, PawnIo, UrlLauncher.Open);
         Shell = new ShellViewModel(new[]
         {
             new NavItem(PageId.Home, "Home", "\uE80F", Home),
@@ -89,6 +93,8 @@ public sealed class AppHost : IDisposable
     public IHardwareStatusSource Hardware { get; }
 
     public NotificationService Notifications { get; }
+
+    public PawnIoStatusTracker PawnIo { get; }
 
     public HomeViewModel Home { get; }
 

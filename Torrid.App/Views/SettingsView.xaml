@@ -104,6 +104,66 @@
                     </StackPanel>
                 </Border>
 
+                <!-- ===== CPU temperature driver (PawnIO) ===== -->
+                <Border Style="{StaticResource SectionCardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="CPU temperature driver (PawnIO)" Style="{StaticResource CardTitleStyle}"/>
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" FontSize="13" Margin="0,6,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="CPU temperature is read through the separate PawnIO driver. GPU temperatures do not need it."/>
+
+                        <!-- Status pill: green = current, amber = missing or old, grey = couldn't check -->
+                        <Border Margin="0,14,0,0" Padding="12,8" CornerRadius="6" HorizontalAlignment="Left"
+                                Background="{StaticResource InputBackgroundBrush}">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="8" Height="8" VerticalAlignment="Top" Margin="0,5,10,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{StaticResource StatusOkBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PawnIoState}" Value="Outdated">
+                                                    <Setter Property="Fill" Value="{StaticResource ZoneYellowBrush}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding PawnIoState}" Value="NotInstalled">
+                                                    <Setter Property="Fill" Value="{StaticResource ZoneYellowBrush}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding PawnIoState}" Value="Unknown">
+                                                    <Setter Property="Fill" Value="{StaticResource ZoneUnknownBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="{Binding PawnIoStatusText}" FontSize="13" TextWrapping="Wrap" MaxWidth="620">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding PawnIoState}" Value="Outdated">
+                                                    <Setter Property="Foreground" Value="{StaticResource BannerTextBrush}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding PawnIoState}" Value="NotInstalled">
+                                                    <Setter Property="Foreground" Value="{StaticResource BannerTextBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Style="{StaticResource PrimaryButtonStyle}" Content="Open download page" Margin="0,0,8,0"
+                                    Command="{Binding OpenPawnIoDownloadCommand}"
+                                    Visibility="{Binding ShowPawnIoDownloadButton, Converter={StaticResource BoolToVisibility}}"/>
+                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Re-check"
+                                    Command="{Binding RecheckPawnIoCommand}"/>
+                        </StackPanel>
+
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,12,0,0" TextWrapping="Wrap"
+                                   Text="Torrid never installs drivers itself. If PawnIO is missing or old, get the installer from the official download page, run it yourself, then press Re-check. Version 2.1.0 or newer is recommended."/>
+                    </StackPanel>
+                </Border>
+
                 <!-- ===== Notifications ===== -->
                 <Border Style="{StaticResource SectionCardStyle}">
                     <StackPanel>

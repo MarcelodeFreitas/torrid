@@ -3,7 +3,9 @@ namespace Torrid.App.ViewModels;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Input;
+using Torrid.App.Drivers;
 using Torrid.Core.Config;
+using Torrid.Core.Drivers;
 using Torrid.Core.Sensors;
 
 public sealed record AntiCheatChoice(AntiCheatBehavior Value, string Title, string Description);
@@ -21,16 +23,22 @@ public sealed class SettingsPageViewModel : ObservableObject
 
     private readonly ConfigManager _config;
     private readonly IHardwareStatusSource _hardware;
+    private readonly PawnIoStatusTracker _pawnIo;
     private readonly RelayCommand _addProcessCommand;
     private string _newProcessName = "";
     private string _hardwareStatusText = "";
     private bool _isAntiCheatDetected;
 
-    public SettingsPageViewModel(ConfigManager config, IHardwareStatusSource hardware, Action sendTestNotification)
+    public SettingsPageViewModel(ConfigManager config, IHardwareStatusSource hardware, Action sendTestNotification,
+        PawnIoStatusTracker pawnIo, Action<string> openUrl)
     {
         _config = config;
         _hardware = hardware;
+        _pawnIo = pawnIo;
         SendTestNotificationCommand = new RelayCommand(_ => sendTestNotification());
+        OpenPawnIoDownloadCommand = new RelayCommand(_ => openUrl(PawnIoDownloadUrl));
+        RecheckPawnIoCommand = new RelayCommand(_ => _pawnIo.Refresh());
+        _pawnIo.Changed += (_, _) => UiThread.Post(OnPawnIoChanged);
 
         AntiCheatChoices = new[]
         {
@@ -126,6 +134,32 @@ public sealed class SettingsPageViewModel : ObservableObject
 
     public string KnownProductsText { get; }
 
+    public const string PawnIoDownloadUrl = "https://github.com/namazso/PawnIO.Setup/releases/latest";
+
+    public PawnIoState PawnIoState => _pawnIo.Status.State;
+
+    /// <summary>One sentence describing the PawnIO driver, shown next to the status dot.</summary>
+    public string PawnIoStatusText => DescribePawnIo(_pawnIo.Status);
+
+    /// <summary>The download page is offered whenever the driver is missing, old, or could not be checked.</summary>
+    public bool ShowPawnIoDownloadButton => _pawnIo.Status.State != PawnIoState.Current;
+
+    /// <summary>Opens the official PawnIO release page in the browser. Torrid never downloads or runs the installer.</summary>
+    public ICommand OpenPawnIoDownloadCommand { get; }
+
+    /// <summary>Looks for the driver again, e.g. after the user installed it.</summary>
+    public ICommand RecheckPawnIoCommand { get; }
+
+    public static string DescribePawnIo(PawnIoStatus status) => status.State switch
+    {
+        PawnIoState.Current => $"PawnIO {status.Version} is installed.",
+        PawnIoState.Outdated =>
+            $"PawnIO {status.Version} is installed, but {PawnIoStatusEvaluator.MinimumRecommendedVersion} or newer is recommended " +
+            $"(older versions are blocked by some anti-cheats). Latest: {PawnIoStatusEvaluator.LatestKnownVersion}.",
+        PawnIoState.NotInstalled => "PawnIO isn't installed, so CPU temperature is unavailable. GPU temperatures still work.",
+        _ => "Couldn't check the PawnIO version.",
+    };
+
     /// <summary>Shows a test toast so the user can check that alerts reach them.</summary>
     public ICommand SendTestNotificationCommand { get; }
 
@@ -150,6 +184,13 @@ public sealed class SettingsPageViewModel : ObservableObject
         var status = _hardware.Status;
         HardwareStatusText = DescribeStatus(status);
         IsAntiCheatDetected = status.AntiCheat is not null;
+    }
+
+    private void OnPawnIoChanged()
+    {
+        Raise(nameof(PawnIoState));
+        Raise(nameof(PawnIoStatusText));
+        Raise(nameof(ShowPawnIoDownloadButton));
     }
 
     private void OnConfigChanged()

@@ -1,4 +1,6 @@
+using Torrid.App.Drivers;
 using Torrid.App.ViewModels;
+using Torrid.Core.Drivers;
 using Torrid.Core.Config;
 using Torrid.Core.Models;
 using Torrid.Core.Sensors;
@@ -34,6 +36,20 @@ public sealed class InMemoryConfigStore : IConfigStore
     public void Save(AppConfig config) { }
 }
 
+public sealed class FakePawnIoDetector : IPawnIoDetector
+{
+    public FakePawnIoDetector(PawnIoStatus? status = null) => Status = status ?? new PawnIoStatus(PawnIoState.Current, "2.2.0");
+
+    public PawnIoStatus Status { get; set; }
+    public int Calls { get; private set; }
+
+    public PawnIoStatus Detect()
+    {
+        Calls++;
+        return Status;
+    }
+}
+
 public class HomeViewModelTests
 {
     private const string Cpu5950X = "AMD Ryzen 9 5950X";
@@ -55,9 +71,17 @@ public class HomeViewModelTests
 
     private static (HomeViewModel Vm, FakeSensorSourceForTests Source, ConfigManager Config) Make(AppConfig? config = null)
     {
+        var (vm, source, manager, _) = MakeWithPawnIo(config, new PawnIoStatus(PawnIoState.Current, "2.2.0"));
+        return (vm, source, manager);
+    }
+
+    private static (HomeViewModel Vm, FakeSensorSourceForTests Source, ConfigManager Config, PawnIoStatusTracker PawnIo) MakeWithPawnIo(
+        AppConfig? config, PawnIoStatus pawnIoStatus)
+    {
         var source = new FakeSensorSourceForTests();
         var manager = new ConfigManager(new InMemoryConfigStore(), config ?? new AppConfig(), TimeSpan.Zero);
-        return (new HomeViewModel(source, source, manager), source, manager);
+        var tracker = new PawnIoStatusTracker(new FakePawnIoDetector(pawnIoStatus));
+        return (new HomeViewModel(source, source, manager, tracker), source, manager, tracker);
     }
 
     private static SensorCardViewModel Card(HomeViewModel vm, string id) =>
@@ -321,5 +345,88 @@ public class HomeViewModelTests
         Assert.False(vm.HasStatusMessage);
         Assert.Contains(nameof(HomeViewModel.StatusMessage), raised);
         Assert.Contains(nameof(HomeViewModel.HasStatusMessage), raised);
+    }
+
+    // --- PawnIO driver line (NotInstalled only; unrelated to the "not elevated => CPU reads 0" case) ---
+
+    private static PawnIoStatus PawnIo(PawnIoState state, string? version = null) => new(state, version);
+
+    [Fact]
+    public void DriverMessage_WhenPawnIoIsNotInstalled_PointsToSettings()
+    {
+        var (vm, _, _, _) = MakeWithPawnIo(null, PawnIo(PawnIoState.NotInstalled));
+
+        Assert.Equal("CPU temperature needs the PawnIO driver — see Settings.", vm.DriverMessage);
+        Assert.Equal(HomeViewModel.PawnIoMissingMessage, vm.DriverMessage);
+        Assert.True(vm.HasDriverMessage);
+    }
+
+    [Theory]
+    [InlineData(PawnIoState.Current, "2.2.0")]
+    [InlineData(PawnIoState.Outdated, "2.0.1.0")]
+    [InlineData(PawnIoState.Unknown, null)]
+    public void DriverMessage_IsHidden_ForEveryStateExceptNotInstalled(PawnIoState state, string? version)
+    {
+        var (vm, _, _, _) = MakeWithPawnIo(null, PawnIo(state, version));
+
+        Assert.Null(vm.DriverMessage);
+        Assert.False(vm.HasDriverMessage);
+    }
+
+    [Fact]
+    public void DriverMessage_IsHiddenWhileMonitoringIsPaused_AndReturnsAfterwards()
+    {
+        var (vm, source, _, _) = MakeWithPawnIo(null, PawnIo(PawnIoState.NotInstalled));
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        source.SetStatus(new HardwareStatus(HardwareAccessLevel.Paused, new AntiCheatMatch("Riot Vanguard", "vgc")));
+
+        Assert.Null(vm.DriverMessage);
+        Assert.False(vm.HasDriverMessage);
+        Assert.NotNull(vm.StatusMessage); // the anti-cheat banner is unaffected
+
+        source.SetStatus(HardwareStatus.FullAccess);
+
+        Assert.Equal(HomeViewModel.PawnIoMissingMessage, vm.DriverMessage);
+        Assert.Contains(nameof(HomeViewModel.DriverMessage), raised);
+        Assert.Contains(nameof(HomeViewModel.HasDriverMessage), raised);
+    }
+
+    [Fact]
+    public void DriverMessage_IsShownInGpuOnlyMode_AlongsideTheAntiCheatMessage()
+    {
+        var (vm, source, _, _) = MakeWithPawnIo(null, PawnIo(PawnIoState.NotInstalled));
+
+        source.SetStatus(new HardwareStatus(HardwareAccessLevel.GpuOnly, new AntiCheatMatch("Riot Vanguard", "vgc")));
+
+        Assert.NotNull(vm.StatusMessage);
+        Assert.Equal(HomeViewModel.PawnIoMissingMessage, vm.DriverMessage);
+    }
+
+    [Fact]
+    public void DriverMessage_DoesNotChangeTheAntiCheatStatusMessage()
+    {
+        var (vm, _, _, _) = MakeWithPawnIo(null, PawnIo(PawnIoState.NotInstalled));
+
+        Assert.Null(vm.StatusMessage);
+        Assert.False(vm.HasStatusMessage);
+    }
+
+    [Fact]
+    public void DriverMessage_FollowsARecheck()
+    {
+        var detector = new FakePawnIoDetector(PawnIo(PawnIoState.NotInstalled));
+        var source = new FakeSensorSourceForTests();
+        var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero);
+        var tracker = new PawnIoStatusTracker(detector);
+        var vm = new HomeViewModel(source, source, manager, tracker);
+        Assert.True(vm.HasDriverMessage);
+
+        detector.Status = PawnIo(PawnIoState.Current, "2.2.0");
+        tracker.Refresh();
+
+        Assert.Null(vm.DriverMessage);
+        Assert.False(vm.HasDriverMessage);
     }
 }

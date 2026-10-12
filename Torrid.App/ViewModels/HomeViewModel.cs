@@ -1,7 +1,9 @@
 namespace Torrid.App.ViewModels;
 
 using System.Collections.ObjectModel;
+using Torrid.App.Drivers;
 using Torrid.Core.Config;
+using Torrid.Core.Drivers;
 using Torrid.Core.Models;
 using Torrid.Core.Sensors;
 
@@ -15,21 +17,25 @@ public sealed class HomeViewModel : ObservableObject
     private readonly ConfigManager _config;
     private readonly Dictionary<string, DeviceGroupViewModel> _groupsByKey = new();
     private readonly Dictionary<string, SensorCardViewModel> _cardsById = new();
+    private readonly PawnIoStatusTracker _pawnIo;
     private string? _statusMessage;
+    private string? _driverMessage;
     private bool _isEmpty = true;
     private string _emptyMessage = NoReadingsMessage;
 
-    public HomeViewModel(ISensorSource sensors, IHardwareStatusSource hardware, ConfigManager config)
+    public HomeViewModel(ISensorSource sensors, IHardwareStatusSource hardware, ConfigManager config, PawnIoStatusTracker pawnIo)
     {
         _sensors = sensors;
         _hardware = hardware;
         _config = config;
+        _pawnIo = pawnIo;
 
         // Sensor events arrive on the poll thread and config changes on whichever thread edited it:
         // always hop to the UI thread (non-blocking) before touching bound collections.
         _sensors.ReadingsUpdated += (_, _) => UiThread.Post(Apply);
         _hardware.StatusChanged += (_, _) => UiThread.Post(UpdateStatus);
         _config.Changed += (_, _) => UiThread.Post(Apply);
+        _pawnIo.Changed += (_, _) => UiThread.Post(UpdateStatus);
 
         Apply();
     }
@@ -46,6 +52,23 @@ public sealed class HomeViewModel : ObservableObject
     }
 
     public bool HasStatusMessage => _statusMessage is not null;
+
+    public const string PawnIoMissingMessage = "CPU temperature needs the PawnIO driver — see Settings.";
+
+    /// <summary>
+    /// A quiet second banner line, only when PawnIO is not installed and monitoring is not paused. Deliberately silent for
+    /// Outdated/Unknown/Current (Settings explains those) and separate from the "not elevated" CPU-unavailable case.
+    /// </summary>
+    public string? DriverMessage
+    {
+        get => _driverMessage;
+        private set
+        {
+            if (Set(ref _driverMessage, value)) Raise(nameof(HasDriverMessage));
+        }
+    }
+
+    public bool HasDriverMessage => _driverMessage is not null;
 
     public bool IsEmpty { get => _isEmpty; private set => Set(ref _isEmpty, value); }
 
@@ -66,7 +89,17 @@ public sealed class HomeViewModel : ObservableObject
         };
     }
 
-    private void UpdateStatus() => StatusMessage = DescribeStatus(_hardware.Status);
+    private void UpdateStatus()
+    {
+        var status = _hardware.Status;
+        StatusMessage = DescribeStatus(status);
+        DriverMessage = DescribeDriver(_pawnIo.Status, status);
+    }
+
+    public static string? DescribeDriver(PawnIoStatus pawnIo, HardwareStatus hardware) =>
+        pawnIo.State == PawnIoState.NotInstalled && hardware.Level != HardwareAccessLevel.Paused
+            ? PawnIoMissingMessage
+            : null;
 
     private void Apply()
     {

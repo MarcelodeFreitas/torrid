@@ -1,5 +1,7 @@
+using Torrid.App.Drivers;
 using Torrid.App.ViewModels;
 using Torrid.Core.Config;
+using Torrid.Core.Drivers;
 using Torrid.Core.Sensors;
 
 namespace Torrid.Tests;
@@ -11,7 +13,18 @@ public class SettingsPageViewModelTests
     {
         var hardware = new FakeSensorSourceForTests();
         var manager = new ConfigManager(new InMemoryConfigStore(), config ?? new AppConfig(), TimeSpan.Zero);
-        return (new SettingsPageViewModel(manager, hardware, sendTestNotification ?? (() => { })), manager, hardware);
+        var pawnIo = new PawnIoStatusTracker(new FakePawnIoDetector());
+        return (new SettingsPageViewModel(manager, hardware, sendTestNotification ?? (() => { }), pawnIo, _ => { }), manager, hardware);
+    }
+
+    private static (SettingsPageViewModel Vm, FakePawnIoDetector Detector, List<string> Opened) MakePawnIo(PawnIoStatus status)
+    {
+        var hardware = new FakeSensorSourceForTests();
+        var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero);
+        var detector = new FakePawnIoDetector(status);
+        var opened = new List<string>();
+        var vm = new SettingsPageViewModel(manager, hardware, () => { }, new PawnIoStatusTracker(detector), opened.Add);
+        return (vm, detector, opened);
     }
 
     [Fact]
@@ -198,5 +211,86 @@ public class SettingsPageViewModelTests
         Assert.Equal("4.0 s", vm.PollIntervalText);
         Assert.Equal(10, vm.RefireMinutes);
         Assert.False(vm.StartMinimizedToTray);
+    }
+
+    // --- PawnIO driver card ---
+
+    [Theory]
+    [InlineData(PawnIoState.Current, "2.2.0", "PawnIO 2.2.0 is installed.", false)]
+    [InlineData(PawnIoState.Outdated, "2.0.1.0",
+        "PawnIO 2.0.1.0 is installed, but 2.1.0 or newer is recommended (older versions are blocked by some anti-cheats). Latest: 2.2.0.", true)]
+    [InlineData(PawnIoState.NotInstalled, null,
+        "PawnIO isn't installed, so CPU temperature is unavailable. GPU temperatures still work.", true)]
+    [InlineData(PawnIoState.Unknown, null, "Couldn't check the PawnIO version.", true)]
+    public void PawnIoCard_ShowsTextAndDownloadButton_PerState(PawnIoState state, string? version, string text, bool showDownload)
+    {
+        var (vm, _, _) = MakePawnIo(new PawnIoStatus(state, version));
+
+        Assert.Equal(state, vm.PawnIoState);
+        Assert.Equal(text, vm.PawnIoStatusText);
+        Assert.Equal(showDownload, vm.ShowPawnIoDownloadButton);
+    }
+
+    [Fact]
+    public void Recheck_AsksTheDetectorAgain_AndUpdatesTheCard()
+    {
+        var (vm, detector, _) = MakePawnIo(new PawnIoStatus(PawnIoState.NotInstalled, null));
+        Assert.Equal(1, detector.Calls); // once at startup
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        detector.Status = new PawnIoStatus(PawnIoState.Current, "2.2.0");
+        Assert.True(vm.RecheckPawnIoCommand.CanExecute(null));
+        vm.RecheckPawnIoCommand.Execute(null);
+
+        Assert.Equal(2, detector.Calls);
+        Assert.Equal(PawnIoState.Current, vm.PawnIoState);
+        Assert.Equal("PawnIO 2.2.0 is installed.", vm.PawnIoStatusText);
+        Assert.False(vm.ShowPawnIoDownloadButton);
+        Assert.Contains(nameof(SettingsPageViewModel.PawnIoState), raised);
+        Assert.Contains(nameof(SettingsPageViewModel.PawnIoStatusText), raised);
+        Assert.Contains(nameof(SettingsPageViewModel.ShowPawnIoDownloadButton), raised);
+    }
+
+    [Fact]
+    public void Recheck_CanMoveFromCurrentToNotInstalled()
+    {
+        var (vm, detector, _) = MakePawnIo(new PawnIoStatus(PawnIoState.Current, "2.2.0"));
+
+        detector.Status = new PawnIoStatus(PawnIoState.NotInstalled, null);
+        vm.RecheckPawnIoCommand.Execute(null);
+
+        Assert.Equal(PawnIoState.NotInstalled, vm.PawnIoState);
+        Assert.True(vm.ShowPawnIoDownloadButton);
+    }
+
+    [Fact]
+    public void OpenDownloadCommand_CallsOpenUrlWithTheExactReleasePage()
+    {
+        var (vm, _, opened) = MakePawnIo(new PawnIoStatus(PawnIoState.NotInstalled, null));
+
+        Assert.True(vm.OpenPawnIoDownloadCommand.CanExecute(null));
+        vm.OpenPawnIoDownloadCommand.Execute(null);
+
+        Assert.Equal(new[] { "https://github.com/namazso/PawnIO.Setup/releases/latest" }, opened);
+        Assert.Equal("https://github.com/namazso/PawnIO.Setup/releases/latest", SettingsPageViewModel.PawnIoDownloadUrl);
+    }
+
+    [Fact]
+    public void Detector_ThatThrows_BecomesUnknown_NotACrash()
+    {
+        var hardware = new FakeSensorSourceForTests();
+        var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero);
+        var tracker = new PawnIoStatusTracker(new ThrowingPawnIoDetector());
+
+        var vm = new SettingsPageViewModel(manager, hardware, () => { }, tracker, _ => { });
+
+        Assert.Equal(PawnIoState.Unknown, vm.PawnIoState);
+        Assert.Equal("Couldn't check the PawnIO version.", vm.PawnIoStatusText);
+    }
+
+    private sealed class ThrowingPawnIoDetector : IPawnIoDetector
+    {
+        public PawnIoStatus Detect() => throw new InvalidOperationException("boom");
     }
 }

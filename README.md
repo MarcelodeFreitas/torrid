@@ -21,7 +21,7 @@ Most GPU monitoring tools show core temperature only. For thermal validation and
 
 ## Features
 
-- **One window with a sidebar.** Pages: **Home** (live dashboard of the sensors you chose), **Sensors** (every sensor found, with switches for Window / Tray / Alerts and renaming to tell identical cards apart), **Thresholds** (edit where blue, green, yellow and red begin per sensor type) and **Settings** (poll interval, repeat alerts, start minimized, anti-cheat behaviour, test notification). Edits apply instantly and save automatically.
+- **One window with a sidebar.** Pages: **Home** (live dashboard of the sensors you chose), **Sensors** (every sensor found, with switches for Window / Tray / Alerts and renaming to tell identical cards apart), **Thresholds** (edit where blue, green, yellow and red begin per sensor type) and **Settings** (poll interval, repeat alerts, start minimized, anti-cheat behaviour, PawnIO driver status, test notification). Edits apply instantly and save automatically.
 - **Per-sensor tray icons.** Each chosen sensor gets its own tray icon with a colour-coded number, a tooltip, and a blink while that sensor is in the red zone. Left-click opens the window on Home; the right-click menu has only Settings (opens the Sensors page) and Exit. Closing the window only hides it; Exit from the tray quits.
 - **Alerts.** A Windows toast fires once when a sensor enters red, with optional repeat every N minutes while it stays red. A "Send test notification" button in Settings checks that alerts reach you.
 - **Anti-cheat safety.** While a known anti-cheat is running, Torrid pauses (default), switches to GPU only, or carries on, as you choose. See [docs/anti-cheat.md](docs/anti-cheat.md).
@@ -32,6 +32,12 @@ Settings are stored in `%AppData%\Torrid\config.json`.
 ## Running it
 
 Torrid asks for administrator rights on launch (the published build embeds a `requireAdministrator` manifest). Reading the CPU temperature needs it; without it the CPU reads `0`. GPU temperatures read fine without it on the development machine.
+
+### CPU temperature needs the PawnIO driver (install it separately)
+
+The CPU temperature comes from a kernel driver called **PawnIO**, which Torrid does **not** include and **never installs by itself**. Install it yourself from the official release page: <https://github.com/namazso/PawnIO.Setup/releases/latest>. Without it the CPU temperature is simply unavailable; GPU temperatures still work.
+
+Torrid shows the driver's status under **Settings, CPU temperature driver (PawnIO)** (installed version, or "isn't installed"), with an "Open download page" button (it only opens the page in your browser) and a "Re-check" button to use after you install it. When PawnIO is missing, Home also shows a short note pointing to Settings. Torrid recommends **PawnIO 2.1.0 or newer** (the latest known is 2.2.0): older versions were signed with a certificate that was reported to be shared with cheat software and that FACEIT's anti-cheat blocked. That report concerned FACEIT (see [namazso/PawnIO.Setup issue #1](https://github.com/namazso/PawnIO.Setup/issues/1)); how other anti-cheats, Riot Vanguard included, treat PawnIO is unconfirmed. Details in [docs/anti-cheat.md](docs/anti-cheat.md).
 
 Windows will show a UAC prompt each time it starts. Separately, Torrid creates a **Start Menu shortcut** so that Windows delivers its notifications (see below).
 
