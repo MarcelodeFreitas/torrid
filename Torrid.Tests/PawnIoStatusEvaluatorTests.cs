@@ -23,6 +23,7 @@ public class PawnIoStatusEvaluatorTests
     [InlineData("2.2.0.0")]
     [InlineData("2.1.0.0")]
     [InlineData("3.0")]
+    [InlineData("2.1")]
     [InlineData("10.0.1")]
     public void MinimumOrNewer_IsCurrent_AndKeepsTheVersionText(string version)
     {
@@ -37,6 +38,7 @@ public class PawnIoStatusEvaluatorTests
     [InlineData("2.0.1")]
     [InlineData("2.0.9.9")]
     [InlineData("1.9")]
+    [InlineData("2.0")]
     [InlineData("0.5.0")]
     public void OlderThanMinimum_IsOutdated(string version)
     {
