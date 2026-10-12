@@ -6,6 +6,8 @@ using Torrid.Core.Time;
 
 public sealed class NotificationService
 {
+    private static readonly Dictionary<SensorKind, ThresholdBand> DefaultBands = AppConfig.DefaultThresholds();
+
     private readonly IToastNotifier _notifier;
     private readonly IClock _clock;
     private readonly double _reArmMarginCelsius;
@@ -27,7 +29,7 @@ public sealed class NotificationService
         foreach (var reading in readings)
         {
             if (reading.ValueCelsius is not double value) continue;
-            if (!thresholds.TryGetValue(reading.Kind, out var band)) continue;
+            if (!thresholds.TryGetValue(reading.Kind, out var band) && !DefaultBands.TryGetValue(reading.Kind, out band)) continue;
 
             var isRed = ColorThresholdEvaluator.GetColor(value, band) == ColorZone.Red;
             var wasRed = _currentlyRed.Contains(reading.Id);

@@ -26,6 +26,12 @@ public sealed class ThresholdsViewModel : ObservableObject
         SensorKind.GpuCore => "GPU core",
         SensorKind.GpuHotSpot => "GPU hot spot",
         SensorKind.GpuVram => "GPU memory junction (VRAM)",
+        SensorKind.CpuOther => "Other CPU sensors",
+        SensorKind.GpuOther => "Other GPU sensors",
+        SensorKind.Motherboard => "Motherboard / VRM",
+        SensorKind.Storage => "Storage",
+        SensorKind.Memory => "Memory",
+        SensorKind.OtherTemp => "Other sensors",
         _ => kind.ToString(),
     };
 }

@@ -157,6 +157,12 @@ public sealed class SensorListItemViewModel : ObservableObject
         SensorKind.GpuCore => "GPU core",
         SensorKind.GpuHotSpot => "GPU hot spot",
         SensorKind.GpuVram => "GPU memory junction",
+        SensorKind.CpuOther => "Other CPU sensor",
+        SensorKind.GpuOther => "Other GPU sensor",
+        SensorKind.Motherboard => "Motherboard sensor",
+        SensorKind.Storage => "Storage sensor",
+        SensorKind.Memory => "Memory sensor",
+        SensorKind.OtherTemp => "Other sensor",
         _ => kind.ToString(),
     };
 }

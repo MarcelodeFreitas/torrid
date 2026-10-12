@@ -105,4 +105,18 @@ public class NotificationServiceTests
         Assert.Null(exception);
         Assert.Empty(notifier.ShownAlerts);
     }
+
+    [Fact]
+    public void Evaluate_WhenThresholdsLackTheReadingsKind_FallsBackToTheDefaultBand()
+    {
+        var notifier = new RecordingToastNotifier();
+        var service = new NotificationService(notifier, new FakeClock(), refireMinutes: 0);
+        var vrm = new SensorReading("hw:/lpc/x/0/temperature/4", "VRM", SensorKind.Motherboard, null, 95);
+        var cool = new SensorReading("hw:/lpc/x/0/temperature/5", "System", SensorKind.Motherboard, null, 40);
+
+        service.Evaluate(new[] { vrm, cool }, new Dictionary<SensorKind, ThresholdBand>());
+
+        var alert = Assert.Single(notifier.ShownAlerts);
+        Assert.Equal("VRM", alert.Label);
+    }
 }

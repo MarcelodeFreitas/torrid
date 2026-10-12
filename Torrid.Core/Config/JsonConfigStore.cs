@@ -1,6 +1,7 @@
 namespace Torrid.Core.Config;
 
 using System.Text.Json;
+using Torrid.Core.Models;
 using Torrid.Core.Sensors;
 
 public sealed class JsonConfigStore : IConfigStore
@@ -61,6 +62,18 @@ public sealed class JsonConfigStore : IConfigStore
         foreach (var key in config.Sensors.Where(p => p.Value is null).Select(p => p.Key).ToList())
         {
             config.Sensors.Remove(key);
+        }
+
+        config.AddedSensors = config.AddedSensors is null
+            ? new Dictionary<string, AddedSensor>()
+            : config.AddedSensors
+                .Where(p => p.Value is not null
+                            && SensorIdentity.IsGenericId(p.Key)
+                            && !string.IsNullOrWhiteSpace(p.Value.Name))
+                .ToDictionary(p => p.Key, p => p.Value);
+        foreach (var added in config.AddedSensors.Values)
+        {
+            if (!Enum.IsDefined(added.Kind)) added.Kind = SensorKind.OtherTemp;
         }
 
         config.ExtraProtectedProcesses = (config.ExtraProtectedProcesses ?? new List<string>())

@@ -163,8 +163,9 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
     private static HardwareSnapshot ToSnapshot(IHardware hardware) => new(
         hardware.HardwareType,
         hardware.Name,
-        hardware.Sensors.Select(s => new SensorSnapshot(s.Name, s.SensorType, s.Value)).ToList(),
-        hardware.SubHardware.Select(ToSnapshot).ToList());
+        hardware.Sensors.Select(s => new SensorSnapshot(s.Name, s.SensorType, s.Value, s.Identifier.ToString())).ToList(),
+        hardware.SubHardware.Select(ToSnapshot).ToList(),
+        hardware.Identifier.ToString());
 
     public void Dispose()
     {

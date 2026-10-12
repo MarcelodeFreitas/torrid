@@ -25,4 +25,18 @@ public class SensorDefaultsTests
     {
         Assert.True(SensorDefaults.Notify(kind));
     }
+
+    [Theory]
+    [InlineData(SensorKind.CpuOther)]
+    [InlineData(SensorKind.GpuOther)]
+    [InlineData(SensorKind.Motherboard)]
+    [InlineData(SensorKind.Storage)]
+    [InlineData(SensorKind.Memory)]
+    [InlineData(SensorKind.OtherTemp)]
+    public void NewKinds_DefaultToWindowOff_TrayOff_NotifyOn(SensorKind kind)
+    {
+        Assert.False(SensorDefaults.ShownInWindow(kind));
+        Assert.False(SensorDefaults.ShownInTray(kind));
+        Assert.True(SensorDefaults.Notify(kind));
+    }
 }

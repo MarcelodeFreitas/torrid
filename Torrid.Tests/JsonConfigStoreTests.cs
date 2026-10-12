@@ -188,6 +188,112 @@ public class JsonConfigStoreTests : IDisposable
         Assert.Equal(AntiCheatBehavior.Pause, config.WhileAntiCheatActive);
     }
 
+    [Fact]
+    public void AddedSensors_DefaultsToEmpty_AndOldConfigsWithoutTheFieldLoad()
+    {
+        Assert.Empty(new AppConfig().AddedSensors);
+
+        File.WriteAllText(_path, "{\"PollIntervalMs\": 3000}");
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.NotNull(config.AddedSensors);
+        Assert.Empty(config.AddedSensors);
+    }
+
+    [Fact]
+    public void AddedSensors_RoundTripWithKindSerialisedAsAString()
+    {
+        var store = new JsonConfigStore(_path);
+        var config = new AppConfig();
+        config.AddedSensors["hw:/lpc/nct6798d/0/temperature/4"] =
+            new AddedSensor { Name = "VRM", HardwareName = "ASUS ROG", Kind = SensorKind.Motherboard };
+
+        store.Save(config);
+        var loaded = store.Load();
+
+        Assert.Contains("\"Motherboard\"", File.ReadAllText(_path));
+        var added = Assert.Single(loaded.AddedSensors);
+        Assert.Equal("hw:/lpc/nct6798d/0/temperature/4", added.Key);
+        Assert.Equal("VRM", added.Value.Name);
+        Assert.Equal("ASUS ROG", added.Value.HardwareName);
+        Assert.Equal(SensorKind.Motherboard, added.Value.Kind);
+    }
+
+    [Fact]
+    public void Load_AddedSensors_DropsNullEntriesInvalidKeysAndBlankNames_WithoutThrowing()
+    {
+        File.WriteAllText(_path, """
+            { "AddedSensors": {
+                "hw:/ok/0": { "Name": "Good", "Kind": "Storage" },
+                "hw:/nullentry": null,
+                "cpu": { "Name": "Not generic", "Kind": "CpuOther" },
+                "hw:": { "Name": "Empty tail", "Kind": "CpuOther" },
+                "hw:/has space": { "Name": "Space", "Kind": "CpuOther" },
+                "hw:/blank": { "Name": "   ", "Kind": "CpuOther" },
+                "hw:/noname": { "Kind": "CpuOther" }
+            } }
+            """);
+
+        var config = new JsonConfigStore(_path).Load();
+
+        var added = Assert.Single(config.AddedSensors);
+        Assert.Equal("hw:/ok/0", added.Key);
+        Assert.Equal(SensorKind.Storage, added.Value.Kind);
+    }
+
+    [Fact]
+    public void Load_AddedSensorsNull_NormalizesToEmpty()
+    {
+        File.WriteAllText(_path, "{ \"AddedSensors\": null }");
+
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.NotNull(config.AddedSensors);
+        Assert.Empty(config.AddedSensors);
+    }
+
+    [Fact]
+    public void DefaultThresholds_IncludeTheNewKindsWithThePlannedBands()
+    {
+        var t = AppConfig.DefaultThresholds();
+
+        Assert.Equal(new[] { 40.0, 70, 85 }, Band(t[SensorKind.CpuOther]));
+        Assert.Equal(new[] { 50.0, 85, 95 }, Band(t[SensorKind.GpuOther]));
+        Assert.Equal(new[] { 45.0, 70, 90 }, Band(t[SensorKind.Motherboard]));
+        Assert.Equal(new[] { 40.0, 55, 70 }, Band(t[SensorKind.Storage]));
+        Assert.Equal(new[] { 40.0, 60, 80 }, Band(t[SensorKind.Memory]));
+        Assert.Equal(new[] { 45.0, 70, 85 }, Band(t[SensorKind.OtherTemp]));
+        foreach (SensorKind kind in Enum.GetValues(typeof(SensorKind)))
+        {
+            Assert.True(t.ContainsKey(kind));
+        }
+    }
+
+    [Fact]
+    public void Load_ConfigSavedByAnOlderBuild_GetsTheNewKindsBands_AndKeepsCustomisedOnes()
+    {
+        File.WriteAllText(_path, """
+            { "Thresholds": {
+                "CpuPackage": { "BlueMax": 1, "GreenMax": 2, "YellowMax": 3 },
+                "GpuCore": { "BlueMax": 40, "GreenMax": 75, "YellowMax": 85 },
+                "GpuHotSpot": { "BlueMax": 50, "GreenMax": 85, "YellowMax": 95 },
+                "GpuVram": { "BlueMax": 50, "GreenMax": 85, "YellowMax": 95 }
+            } }
+            """);
+
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.Equal(3, config.Thresholds[SensorKind.CpuPackage].YellowMax);
+        Assert.Equal(90, config.Thresholds[SensorKind.Motherboard].YellowMax);
+        Assert.Equal(70, config.Thresholds[SensorKind.Storage].YellowMax);
+        foreach (SensorKind kind in Enum.GetValues(typeof(SensorKind)))
+        {
+            Assert.NotNull(config.Thresholds[kind]);
+        }
+    }
+
+    private static double[] Band(ThresholdBand b) => new[] { b.BlueMax, b.GreenMax, b.YellowMax };
+
     public void Dispose()
     {
         if (File.Exists(_path)) File.Delete(_path);
