@@ -65,10 +65,10 @@ public sealed class AppHost : IDisposable
         SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware, SendTestNotification);
         Shell = new ShellViewModel(new[]
         {
-            new NavItem(PageId.Home, "Home", "", Home),
-            new NavItem(PageId.Sensors, "Sensors", "", SensorsPage),
-            new NavItem(PageId.Thresholds, "Thresholds", "", ThresholdsPage),
-            new NavItem(PageId.Settings, "Settings", "", SettingsPage),
+            new NavItem(PageId.Home, "Home", "\uE80F", Home),
+            new NavItem(PageId.Sensors, "Sensors", "\uE9CA", SensorsPage),
+            new NavItem(PageId.Thresholds, "Thresholds", "\uE790", ThresholdsPage),
+            new NavItem(PageId.Settings, "Settings", "\uE713", SettingsPage),
         });
         if (options.InitialPage is PageId initialPage) Shell.Navigate(initialPage);
 
@@ -77,8 +77,8 @@ public sealed class AppHost : IDisposable
 
         Tray = new TrayIconGroupManager(Sensors, ConfigManager, Hardware);
         Tray.TrayIconClicked += (_, _) => ShowMainWindow(PageId.Home);
-        Tray.OpenRequested += (_, _) => ShowMainWindow();
-        Tray.SettingsRequested += (_, _) => ShowMainWindow(PageId.Settings);
+        // Tray "Settings" opens the Sensors page: live values plus the window / tray / alert switches.
+        Tray.SettingsRequested += (_, _) => ShowMainWindow(PageId.Sensors);
         Tray.ExitRequested += (_, _) => Exit();
     }
 
@@ -142,15 +142,24 @@ public sealed class AppHost : IDisposable
         // Each teardown step is isolated so a failing sensor source or tray can never skip the config flush.
         try
         {
-            Sensors.Stop();
-            (Sensors as IDisposable)?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Stopping the sensor source failed: {ex}");
-        }
-        finally
-        {
+            try
+            {
+                Sensors.Stop();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Stopping the sensor source failed: {ex}");
+            }
+
+            try
+            {
+                (Sensors as IDisposable)?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Disposing the sensor source failed: {ex}");
+            }
+
             try
             {
                 Tray.Dispose();
@@ -159,10 +168,10 @@ public sealed class AppHost : IDisposable
             {
                 Debug.WriteLine($"Disposing the tray failed: {ex}");
             }
-            finally
-            {
-                ConfigManager.Dispose(); // flushes a pending debounced save
-            }
+        }
+        finally
+        {
+            ConfigManager.Dispose(); // flushes a pending debounced save
         }
     }
 

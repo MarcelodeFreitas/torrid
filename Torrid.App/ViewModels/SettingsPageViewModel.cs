@@ -36,8 +36,8 @@ public sealed class SettingsPageViewModel : ObservableObject
         {
             new AntiCheatChoice(AntiCheatBehavior.Pause, "Pause monitoring (recommended)",
                 "Stop reading all sensors until the game closes. Nothing touches the hardware."),
-            new AntiCheatChoice(AntiCheatBehavior.GpuOnly, "GPU only — no driver access",
-                "Keep GPU temperatures through the graphics driver; CPU reading pauses."),
+            new AntiCheatChoice(AntiCheatBehavior.GpuOnly, "GPU only — no PawnIO driver",
+                "Keep GPU temperatures; CPU temperature (the part that needs the PawnIO driver) pauses."),
             new AntiCheatChoice(AntiCheatBehavior.Continue, "Keep monitoring",
                 "Ignore the anti-cheat. Some games may refuse to start or kick you."),
         };
@@ -134,8 +134,8 @@ public sealed class SettingsPageViewModel : ObservableObject
         if (status.AntiCheat is not { } match) return "Monitoring normally.";
 
         var running = match.Product == "Custom"
-            ? $"{match.ProcessName} is running"
-            : $"{match.Product} is running ({match.ProcessName})";
+            ? $"{match.DisplayName} is running"
+            : $"{match.DisplayName} is running ({match.ProcessName})";
 
         return status.Level switch
         {

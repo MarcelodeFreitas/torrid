@@ -37,6 +37,7 @@ public class SensorIdentityTests
     [InlineData("gpu0-fan")]
     [InlineData("gpux-core")]
     [InlineData("GPU0-CORE")]
+    [InlineData("gpu0-core\n")]
     [InlineData("gpu99999999999999999999-core")]
     [InlineData("gpu01-core")]
     [InlineData("gpu00-vram")]

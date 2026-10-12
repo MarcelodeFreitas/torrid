@@ -6,7 +6,11 @@ public enum AntiCheatBehavior { Pause, GpuOnly, Continue }
 
 public enum HardwareAccessLevel { Full, GpuOnly, Paused }
 
-public sealed record AntiCheatMatch(string Product, string ProcessName);
+public sealed record AntiCheatMatch(string Product, string ProcessName)
+{
+    /// <summary>What to call the culprit in the UI: the process name for a user-added ("Custom") entry, otherwise the product.</summary>
+    public string DisplayName => Product == "Custom" ? ProcessName : Product;
+}
 
 public sealed record HardwareStatus(HardwareAccessLevel Level, AntiCheatMatch? AntiCheat)
 {
@@ -36,6 +40,7 @@ public static class AntiCheatDetector
         var running = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var name in runningProcessNames)
         {
+            if (name is null) continue;
             var normalised = Normalize(name);
             running.TryAdd(normalised, normalised);
         }
@@ -50,7 +55,7 @@ public static class AntiCheatDetector
 
         if (extraProcessNames is not null)
         {
-            foreach (var extra in extraProcessNames.Select(Normalize).Where(n => n.Length > 0))
+            foreach (var extra in extraProcessNames.Where(n => n is not null).Select(Normalize).Where(n => n.Length > 0))
             {
                 if (running.TryGetValue(extra, out var actual)) return new AntiCheatMatch("Custom", actual);
             }

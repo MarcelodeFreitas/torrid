@@ -62,7 +62,7 @@ public static class StartMenuShortcut
                 return Outcome.Unchanged;
             }
 
-            if (existed) File.Delete(shortcutPath);
+            // No delete first: IPersistFile.Save overwrites, so a failed Create never removes a working shortcut.
             Create(shortcutPath, targetExe, appUserModelId);
             return existed ? Outcome.Recreated : Outcome.Created;
         }

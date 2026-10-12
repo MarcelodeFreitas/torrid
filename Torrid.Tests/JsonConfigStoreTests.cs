@@ -31,6 +31,17 @@ public class JsonConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Load_DropsNullAndBlankExtraProtectedProcesses_AndTrims()
+    {
+        File.WriteAllText(_path, "{ \"ExtraProtectedProcesses\": [\"x\", null, \"  \", \" y \"] }");
+        var store = new JsonConfigStore(_path);
+
+        var config = store.Load();
+
+        Assert.Equal(new[] { "x", "y" }, config.ExtraProtectedProcesses);
+    }
+
+    [Fact]
     public void Load_WhenThresholdsIsNull_ReplacesWithDefaults()
     {
         File.WriteAllText(_path, "{ \"Thresholds\": null }");

@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 public sealed record SensorIdentity(string Id, string DefaultLabel, SensorKind Kind, int? GpuIndex)
 {
-    private static readonly Regex GpuId = new(@"^gpu(0|[1-9][0-9]*)-(core|hotspot|vram)$", RegexOptions.Compiled);
+    private static readonly Regex GpuId = new(@"^gpu(0|[1-9][0-9]*)-(core|hotspot|vram)\z", RegexOptions.Compiled);
 
     public static SensorIdentity FromReading(SensorReading reading) =>
         new(reading.Id, reading.Label, reading.Kind, reading.GpuIndex);

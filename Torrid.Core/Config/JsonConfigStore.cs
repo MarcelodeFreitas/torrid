@@ -63,7 +63,10 @@ public sealed class JsonConfigStore : IConfigStore
             config.Sensors.Remove(key);
         }
 
-        config.ExtraProtectedProcesses ??= new List<string>();
+        config.ExtraProtectedProcesses = (config.ExtraProtectedProcesses ?? new List<string>())
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .ToList();
         if (!Enum.IsDefined(config.WhileAntiCheatActive))
         {
             config.WhileAntiCheatActive = AntiCheatBehavior.Pause;

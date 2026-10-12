@@ -25,10 +25,5 @@ public static class TooltipTextBuilder
         return text.Length <= MaxLength ? text : text[..(MaxLength - 3)] + "...";
     }
 
-    private static string DescribeCulprit(AntiCheatMatch? match) => match switch
-    {
-        null => "an anti-cheat",
-        { Product: "Custom" } => match.ProcessName,
-        _ => match.Product,
-    };
+    private static string DescribeCulprit(AntiCheatMatch? match) => match?.DisplayName ?? "an anti-cheat";
 }

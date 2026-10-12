@@ -23,6 +23,26 @@ public class AntiCheatDetectorTests
     }
 
     [Fact]
+    public void Detect_SkipsNullNamesInRunningAndExtraLists()
+    {
+        var running = new string?[] { null, "explorer", null, "mygame" };
+        var extra = new string?[] { null, "  ", "mygame" };
+
+        var match = AntiCheatDetector.Detect(running!, extra!);
+
+        Assert.Equal("Custom", match!.Product);
+        Assert.Equal("mygame", match.DisplayName);
+        Assert.Null(AntiCheatDetector.Detect(new string?[] { null }!, new string?[] { null }!));
+    }
+
+    [Fact]
+    public void DisplayName_IsProcessForCustom_ProductOtherwise()
+    {
+        Assert.Equal("mygame", new AntiCheatMatch("Custom", "mygame").DisplayName);
+        Assert.Equal("Riot Vanguard", new AntiCheatMatch("Riot Vanguard", "vgc").DisplayName);
+    }
+
+    [Fact]
     public void Detect_IsCaseInsensitive_AndIgnoresExeSuffix()
     {
         Assert.NotNull(AntiCheatDetector.Detect(new[] { "VGC.EXE" }));

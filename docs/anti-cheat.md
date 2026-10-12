@@ -79,4 +79,4 @@ Things to try, in order:
 - Torrid is **unsigned**. It has no code-signing certificate, so Windows and anti-cheat software have no publisher identity to trust. Whether that matters to any particular anti-cheat is unknown.
 - Torrid has **not been tested against Vanguard or any other anti-cheat**. The detection list and the three behaviours are unit-tested for logic, and the pause/resume flow was exercised with a stand-in process named `vgc.exe`, but no real anti-cheat has been involved.
 - Torrid cannot guarantee a given game will accept it running, even when paused. Anti-cheat vendors change their rules without notice.
-- Detection polls every couple of seconds, so there is a short window between an anti-cheat starting and Torrid noticing.
+- Detection runs on the poll interval (2 seconds by default, up to 60 seconds if you raise it in Settings), so there is a short window between an anti-cheat starting and Torrid noticing.

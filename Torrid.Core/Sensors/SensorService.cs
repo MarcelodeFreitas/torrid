@@ -1,5 +1,6 @@
 namespace Torrid.Core.Sensors;
 
+using System.Diagnostics;
 using LibreHardwareMonitor.Hardware;
 using Torrid.Core.Models;
 
@@ -77,22 +78,40 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
         {
             if (_disposed) return;
 
+            HardwareStatus? decided = null;
             try
             {
                 // Policy first: an already-running anti-cheat means the hardware (and its driver) is never opened.
-                var status = HardwareAccessPolicy.Evaluate(
+                decided = HardwareAccessPolicy.Evaluate(
                     _behavior(), _processLister.GetRunningProcessNames(), _extraProcesses());
-                statusChanged = !Equals(status, Status);
-                Status = status;
-
-                EnsureComputerFor(status.Level);
-                readings = status.Level == HardwareAccessLevel.Paused
-                    ? SensorReadingBuilder.WithCpuPlaceholder(SensorReadingBuilder.ToUnavailable(CurrentReadings))
-                    : ReadHardware(status.Level);
             }
-            catch
+            catch (Exception ex)
             {
-                readings = SensorReadingBuilder.ToUnavailable(CurrentReadings);
+                // If we cannot tell whether an anti-cheat is running, fail closed: release the hardware, report unavailable.
+                Debug.WriteLine($"SensorService: anti-cheat policy evaluation failed, closing hardware: {ex}");
+                CloseComputer();
+            }
+
+            if (decided is null)
+            {
+                readings = SensorReadingBuilder.WithCpuPlaceholder(SensorReadingBuilder.ToUnavailable(CurrentReadings));
+            }
+            else
+            {
+                try
+                {
+                    statusChanged = !Equals(decided, Status);
+                    Status = decided;
+
+                    EnsureComputerFor(decided.Level);
+                    readings = decided.Level == HardwareAccessLevel.Paused
+                        ? SensorReadingBuilder.WithCpuPlaceholder(SensorReadingBuilder.ToUnavailable(CurrentReadings))
+                        : ReadHardware(decided.Level);
+                }
+                catch
+                {
+                    readings = SensorReadingBuilder.ToUnavailable(CurrentReadings);
+                }
             }
 
             CurrentReadings = readings;

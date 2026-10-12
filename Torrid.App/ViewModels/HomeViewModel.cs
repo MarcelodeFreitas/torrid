@@ -55,7 +55,7 @@ public sealed class HomeViewModel : ObservableObject
     {
         if (status.AntiCheat is not { } match) return null;
 
-        var name = match.Product == "Custom" ? match.ProcessName : match.Product;
+        var name = match.DisplayName;
         return status.Level switch
         {
             HardwareAccessLevel.Paused =>

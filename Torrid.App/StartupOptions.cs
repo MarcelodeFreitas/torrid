@@ -4,7 +4,7 @@ using Torrid.App.ViewModels;
 
 /// <summary>
 /// Command-line switches: <c>--show</c>, <c>--demo</c>, <c>--demo-paused</c> (implies <c>--demo</c>), <c>--config &lt;path&gt;</c>,
-/// and the undocumented <c>--page &lt;Home|Sensors|Thresholds|Settings&gt;</c> (initial page, used for screenshots) and
+/// and <c>--page &lt;Home|Sensors|Thresholds|Settings&gt;</c> (initial page, used for screenshots) and
 /// <c>--test-toast</c> (send one test notification ~15 s after start, then exit; used by tools/Verify-Toast.ps1).
 /// </summary>
 public sealed record StartupOptions(bool ShowWindow, bool Demo, bool DemoPaused, string? ConfigPath)

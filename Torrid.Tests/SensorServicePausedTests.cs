@@ -22,6 +22,21 @@ public class SensorServicePausedTests
         Assert.Null(cpu.ValueCelsius);
     }
 
+    private sealed class ThrowingLister : IProcessLister
+    {
+        public IReadOnlyCollection<string> GetRunningProcessNames() => throw new InvalidOperationException("boom");
+    }
+
+    [Fact]
+    public void WhenProcessListingThrows_FailsClosedWithUnavailableCpuAndNeverOpensHardware()
+    {
+        using var service = new SensorService(60_000, behavior: () => AntiCheatBehavior.Continue, processLister: new ThrowingLister());
+
+        var cpu = Assert.Single(service.CurrentReadings);
+        Assert.Equal("cpu", cpu.Id);
+        Assert.Null(cpu.ValueCelsius);
+    }
+
     [Fact]
     public void ToUnavailableThenCpuPlaceholder_OfEmpty_YieldsSingleNullCpu()
     {

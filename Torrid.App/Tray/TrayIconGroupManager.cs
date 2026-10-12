@@ -30,9 +30,7 @@ public sealed class TrayIconGroupManager : IDisposable
         _hardware = hardware;
 
         _contextMenu = new ContextMenuStrip();
-        _contextMenu.Items.Add("Open Torrid", null, (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty));
         _contextMenu.Items.Add("Settings", null, (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
-        _contextMenu.Items.Add(new ToolStripSeparator());
         _contextMenu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty));
 
         _blinkTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
@@ -48,9 +46,6 @@ public sealed class TrayIconGroupManager : IDisposable
 
     /// <summary>Left click on any icon.</summary>
     public event EventHandler? TrayIconClicked;
-
-    /// <summary>Context menu "Open Torrid".</summary>
-    public event EventHandler? OpenRequested;
 
     /// <summary>Context menu "Settings".</summary>
     public event EventHandler? SettingsRequested;

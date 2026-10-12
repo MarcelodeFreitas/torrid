@@ -22,10 +22,10 @@ Most GPU monitoring tools show core temperature only. For thermal validation and
 ## Features
 
 - **One window with a sidebar.** Pages: **Home** (live dashboard of the sensors you chose), **Sensors** (every sensor found, with switches for Window / Tray / Alerts and renaming to tell identical cards apart), **Thresholds** (edit where blue, green, yellow and red begin per sensor type) and **Settings** (poll interval, repeat alerts, start minimized, anti-cheat behaviour, test notification). Edits apply instantly and save automatically.
-- **Per-sensor tray icons.** Each chosen sensor gets its own tray icon with a colour-coded number, a tooltip, and a blink while that sensor is in the red zone. Left-click opens the window; the right-click menu has Open Torrid, Settings and Exit. Closing the window only hides it; Exit from the tray quits.
+- **Per-sensor tray icons.** Each chosen sensor gets its own tray icon with a colour-coded number, a tooltip, and a blink while that sensor is in the red zone. Left-click opens the window on Home; the right-click menu has only Settings (opens the Sensors page) and Exit. Closing the window only hides it; Exit from the tray quits.
 - **Alerts.** A Windows toast fires once when a sensor enters red, with optional repeat every N minutes while it stays red. A "Send test notification" button in Settings checks that alerts reach you.
 - **Anti-cheat safety.** While a known anti-cheat is running, Torrid pauses (default), switches to GPU only, or carries on, as you choose. See [docs/anti-cheat.md](docs/anti-cheat.md).
-- **Sensible defaults.** Only the CPU temperature and GPU hot spot are shown in the window and tray at first (alerts are on for every sensor); the other sensors LibreHardwareMonitor reports can be switched on from the Sensors page.
+- **Sensible defaults.** Only the CPU temperature and GPU hot spot are shown in the window and tray at first (alerts are on for every sensor); the other sensors Torrid knows about (per device: CPU package, GPU core, GPU hot spot, GPU VRAM / memory junction) can be switched on from the Sensors page.
 
 Settings are stored in `%AppData%\Torrid\config.json`.
 
@@ -33,7 +33,7 @@ Settings are stored in `%AppData%\Torrid\config.json`.
 
 Torrid asks for administrator rights on launch (the published build embeds a `requireAdministrator` manifest). Reading the CPU temperature needs it; without it the CPU reads `0`. GPU temperatures read fine without it on the development machine.
 
-Windows will show a UAC prompt each time it starts. For the same reason, Torrid creates a **Start Menu shortcut** (see below).
+Windows will show a UAC prompt each time it starts. Separately, Torrid creates a **Start Menu shortcut** so that Windows delivers its notifications (see below).
 
 ### Start Menu shortcut side effect
 
@@ -82,7 +82,7 @@ When testing, always pass `--config` with a temporary path so your real settings
 dotnet publish Torrid.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
 
-The result is a single self-contained `Torrid.App.exe` in `publish\` (git-ignored). Launching it triggers a UAC prompt.
+The result is a single self-contained `Torrid.App.exe` in `publish\` (git-ignored), with `.pdb` debug-symbol files written beside it. Launching the exe triggers a UAC prompt.
 
 ## Anti-cheat
 
