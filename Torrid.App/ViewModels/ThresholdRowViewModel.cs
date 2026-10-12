@@ -11,7 +11,7 @@ using Torrid.Core.Models;
 /// </summary>
 public sealed class ThresholdRowViewModel : ObservableObject
 {
-    public const double MaxLimit = 150;
+    public const double MaxLimit = ThresholdResolver.MaxLimit;
     public const double RedHeadroomFactor = 0.25;
     public const string OrderingError = "Each limit must be higher than the one before.";
     public const string RangeError = "Limits must be between 0 and 150 °C.";
@@ -64,8 +64,11 @@ public sealed class ThresholdRowViewModel : ObservableObject
 
     public static string? Validate(double blue, double green, double yellow)
     {
-        if (double.IsNaN(blue) || double.IsNaN(green) || double.IsNaN(yellow) || blue < 0 || yellow > MaxLimit) return RangeError;
-        return blue < green && green < yellow ? null : OrderingError;
+        if (ThresholdResolver.IsValid(new ThresholdBand { BlueMax = blue, GreenMax = green, YellowMax = yellow })) return null;
+
+        // The one validity rule lives in ThresholdResolver; this only picks which message explains the failure.
+        if (double.IsNaN(blue) || double.IsNaN(green) || double.IsNaN(yellow) || blue < 0 || yellow > ThresholdResolver.MaxLimit) return RangeError;
+        return OrderingError;
     }
 
     /// <summary>Reloads the values from the config unless the user is part-way through an invalid edit.</summary>

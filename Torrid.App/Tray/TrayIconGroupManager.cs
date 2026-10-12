@@ -94,10 +94,7 @@ public sealed class TrayIconGroupManager : IDisposable
             .ToList();
         var visibleIds = visibleReadings.Select(r => r.Id).ToHashSet();
 
-        _anyRed = visibleReadings.Any(r =>
-            r.ValueCelsius is double v &&
-            config.Thresholds.TryGetValue(r.Kind, out var band) &&
-            ColorThresholdEvaluator.GetColor(v, band) == ColorZone.Red);
+        _anyRed = TrayThresholds.AnyRed(config, visibleReadings);
 
         foreach (var staleId in _icons.Keys.Except(visibleIds).ToList())
         {
@@ -115,10 +112,7 @@ public sealed class TrayIconGroupManager : IDisposable
                 _icons[reading.Id] = icon;
             }
 
-            if (config.Thresholds.TryGetValue(reading.Kind, out var band))
-            {
-                icon.UpdateVisual(reading, SensorDisplay.ResolveLabel(config, reading), band, _blinkOn, status);
-            }
+            icon.UpdateVisual(reading, SensorDisplay.ResolveLabel(config, reading), ThresholdResolver.For(config, reading), _blinkOn, status);
         }
     }
 }

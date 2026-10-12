@@ -502,4 +502,33 @@ public class HomeViewModelTests
         Assert.Null(vm.DriverMessage);
         Assert.False(vm.HasDriverMessage);
     }
+
+    [Fact]
+    public void Card_ZoneAndFillFollowTheSensorsOwnBand_OthersKeepTheKindDefault()
+    {
+        var (vm, source, config) = Make();
+        config.Update(c => ThresholdResolver.SetCustom(c, "cpu", new ThresholdBand { BlueMax = 10, GreenMax = 20, YellowMax = 30 }));
+
+        source.Publish(new[] { Cpu(25), Gpu0Hot(60) });
+
+        Assert.Equal(ColorZone.Yellow, Card(vm, "cpu").Zone);
+        Assert.Equal(Math.Clamp(25 / (30 * 1.15), 0, 1), Card(vm, "cpu").Fill, 6);
+        var gpuYellowMax = config.Config.Thresholds[SensorKind.GpuHotSpot].YellowMax;
+        Assert.Equal(ColorZone.Green, Card(vm, "gpu0-hotspot").Zone);
+        Assert.Equal(Math.Clamp(60 / (gpuYellowMax * 1.15), 0, 1), Card(vm, "gpu0-hotspot").Fill, 6);
+    }
+
+    [Fact]
+    public void Card_ReturnsToTheKindDefaultWhenTheCustomBandIsCleared()
+    {
+        var (vm, source, config) = Make();
+        config.Update(c => ThresholdResolver.SetCustom(c, "cpu", new ThresholdBand { BlueMax = 10, GreenMax = 20, YellowMax = 30 }));
+        source.Publish(new[] { Cpu(60) });
+        Assert.Equal(ColorZone.Red, Card(vm, "cpu").Zone);
+
+        config.Update(c => ThresholdResolver.ClearCustom(c, "cpu"));
+        source.Publish(new[] { Cpu(60) });
+
+        Assert.Equal(ColorZone.Green, Card(vm, "cpu").Zone);
+    }
 }

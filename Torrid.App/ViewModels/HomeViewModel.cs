@@ -146,7 +146,7 @@ public sealed class HomeViewModel : ObservableObject
                     _cardsById[reading.Id] = card;
                 }
 
-                config.Thresholds.TryGetValue(reading.Kind, out var band);
+                var band = ThresholdResolver.For(config, reading);
                 card.Update(SensorDisplay.ResolveLabel(config, reading), reading.SourceSensorName, reading.ValueCelsius, band);
                 desiredCards.Add(card);
                 liveCardIds.Add(reading.Id);

@@ -129,8 +129,7 @@ public sealed class SensorsViewModel : ObservableObject
 
             foreach (var item in group.Items)
             {
-                config.Thresholds.TryGetValue(item.Identity.Kind, out var band);
-                item.UpdateReading(byId.GetValueOrDefault(item.Id), band);
+                item.UpdateReading(byId.GetValueOrDefault(item.Id), ThresholdResolver.For(config, item.Identity));
             }
         }
     }

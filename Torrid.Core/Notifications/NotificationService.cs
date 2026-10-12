@@ -24,12 +24,23 @@ public sealed class NotificationService
 
     public int RefireMinutes { get; set; }
 
-    public void Evaluate(IReadOnlyList<SensorReading> readings, IReadOnlyDictionary<SensorKind, ThresholdBand> thresholds)
+    /// <summary>Per-kind overload: every sensor of a kind shares one band (built-in default when the kind is missing).</summary>
+    public void Evaluate(IReadOnlyList<SensorReading> readings, IReadOnlyDictionary<SensorKind, ThresholdBand> thresholds) =>
+        EvaluateCore(readings, r =>
+            thresholds.TryGetValue(r.Kind, out var band) && band is not null ? band
+            : DefaultBands.GetValueOrDefault(r.Kind));
+
+    /// <summary>Evaluates each reading against the band <paramref name="bandFor"/> returns for it (its own band or its kind default).</summary>
+    public void Evaluate(IReadOnlyList<SensorReading> readings, Func<SensorReading, ThresholdBand> bandFor) =>
+        EvaluateCore(readings, bandFor);
+
+    private void EvaluateCore(IReadOnlyList<SensorReading> readings, Func<SensorReading, ThresholdBand?> bandFor)
     {
         foreach (var reading in readings)
         {
             if (reading.ValueCelsius is not double value) continue;
-            if (!thresholds.TryGetValue(reading.Kind, out var band) && !DefaultBands.TryGetValue(reading.Kind, out band)) continue;
+            var band = bandFor(reading);
+            if (band is null) continue;
 
             var isRed = ColorThresholdEvaluator.GetColor(value, band) == ColorZone.Red;
             var wasRed = _currentlyRed.Contains(reading.Id);

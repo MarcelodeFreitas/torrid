@@ -218,6 +218,6 @@ public sealed class AppHost : IDisposable
             .Where(r => SensorDisplay.NotificationsEnabled(config, r))
             .Select(r => r with { Label = SensorDisplay.ResolveLabel(config, r) })
             .ToList();
-        Notifications.Evaluate(notifiable, config.Thresholds);
+        Notifications.Evaluate(notifiable, r => ThresholdResolver.For(config, r));
     }
 }

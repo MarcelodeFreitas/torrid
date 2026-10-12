@@ -298,4 +298,54 @@ public class JsonConfigStoreTests : IDisposable
     {
         if (File.Exists(_path)) File.Delete(_path);
     }
+
+    [Fact]
+    public void RoundTrip_KeepsAPerSensorBandAndTheListViewFlag()
+    {
+        var store = new JsonConfigStore(_path);
+        var config = new AppConfig { ThresholdsListView = true };
+        config.Sensors["cpu"] = new SensorPreference
+        {
+            Label = "5950X",
+            Thresholds = new ThresholdBand { BlueMax = 30, GreenMax = 60, YellowMax = 90 },
+        };
+        store.Save(config);
+
+        var loaded = new JsonConfigStore(_path).Load();
+
+        Assert.True(loaded.ThresholdsListView);
+        Assert.Equal("5950X", loaded.Sensors["cpu"].Label);
+        Assert.Equal(new[] { 30.0, 60.0, 90.0 }, Band(loaded.Sensors["cpu"].Thresholds!));
+    }
+
+    [Fact]
+    public void Load_ConfigWithoutPerSensorBands_LoadsUnchanged()
+    {
+        File.WriteAllText(_path, "{ \"Sensors\": { \"cpu\": { \"Label\": \"5950X\", \"Notify\": false } } }");
+
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.Null(config.Sensors["cpu"].Thresholds);
+        Assert.Equal("5950X", config.Sensors["cpu"].Label);
+        Assert.False(config.ThresholdsListView);
+    }
+
+    [Fact]
+    public void Load_DropsAnInvalidPerSensorBand_ButKeepsTheOtherFields()
+    {
+        File.WriteAllText(_path, """
+            { "Sensors": {
+                "cpu": { "Label": "5950X", "Thresholds": { "BlueMax": 90, "GreenMax": 60, "YellowMax": 30 } },
+                "gpu0-core": { "Thresholds": { "BlueMax": 90, "GreenMax": 60, "YellowMax": 30 } },
+                "gpu0-vram": { "Thresholds": { "BlueMax": 30, "GreenMax": 60, "YellowMax": 90 } }
+            } }
+            """);
+
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.Equal("5950X", config.Sensors["cpu"].Label);
+        Assert.Null(config.Sensors["cpu"].Thresholds);
+        Assert.False(config.Sensors.ContainsKey("gpu0-core"));
+        Assert.Equal(90, config.Sensors["gpu0-vram"].Thresholds!.YellowMax);
+    }
 }

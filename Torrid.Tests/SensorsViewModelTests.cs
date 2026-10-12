@@ -466,4 +466,33 @@ public class SensorsViewModelTests
         Assert.True(Item(vm, "gpu2-vram").ShowInTray);
         Assert.Equal("GPU 2", vm.Groups.Last().Title);
     }
+
+    [Fact]
+    public void ValueZone_FollowsTheSensorsOwnBand_OthersKeepTheKindDefault()
+    {
+        var config = new AppConfig();
+        ThresholdResolver.SetCustom(config, "gpu0-core", new ThresholdBand { BlueMax = 10, GreenMax = 20, YellowMax = 30 });
+        var readings = new[] { Gpu(0, SensorKind.GpuCore, 60), Gpu(0, SensorKind.GpuHotSpot, 60), Cpu(60) };
+
+        var (vm, _, _) = Make(config, readings);
+
+        Assert.Equal(ColorZone.Red, Item(vm, "gpu0-core").Zone);
+        Assert.Equal(ColorZone.Green, Item(vm, "gpu0-hotspot").Zone);
+        Assert.Equal(ColorZone.Green, Item(vm, "cpu").Zone);
+    }
+
+    [Fact]
+    public void ValueZone_UpdatesWhenASensorBandIsSetOrCleared()
+    {
+        var (vm, source, manager) = Make(readings: new[] { Cpu(60) });
+        Assert.Equal(ColorZone.Green, Item(vm, "cpu").Zone);
+
+        manager.Update(c => ThresholdResolver.SetCustom(c, "cpu", new ThresholdBand { BlueMax = 10, GreenMax = 20, YellowMax = 30 }));
+        source.Publish(new[] { Cpu(60) });
+        Assert.Equal(ColorZone.Red, Item(vm, "cpu").Zone);
+
+        manager.Update(c => ThresholdResolver.ClearCustom(c, "cpu"));
+        source.Publish(new[] { Cpu(60) });
+        Assert.Equal(ColorZone.Green, Item(vm, "cpu").Zone);
+    }
 }

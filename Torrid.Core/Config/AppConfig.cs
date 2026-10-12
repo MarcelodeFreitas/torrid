@@ -10,6 +10,9 @@ public sealed class AppConfig
     public Dictionary<SensorKind, ThresholdBand> Thresholds { get; set; } = DefaultThresholds();
     public int NotificationRefireMinutes { get; set; } = 0;
     public bool StartMinimizedToTray { get; set; } = true;
+
+    /// <summary>The Thresholds page shows the advanced list instead of the cards.</summary>
+    public bool ThresholdsListView { get; set; }
     public Dictionary<string, SensorPreference> Sensors { get; set; } = new();
 
     /// <summary>Generic hardware sensors the user added, keyed by their <c>hw:</c> id. Replaced wholesale, never mutated in place.</summary>

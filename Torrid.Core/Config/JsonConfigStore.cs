@@ -64,6 +64,15 @@ public sealed class JsonConfigStore : IConfigStore
             config.Sensors.Remove(key);
         }
 
+        // A hand-edited per-sensor band that breaks the ordering/range rule is dropped: the sensor follows its kind default.
+        foreach (var (key, preference) in config.Sensors.ToList())
+        {
+            if (preference.Thresholds is null || ThresholdResolver.IsValid(preference.Thresholds)) continue;
+
+            preference.Thresholds = null;
+            if (preference.IsEmpty) config.Sensors.Remove(key);
+        }
+
         config.AddedSensors = config.AddedSensors is null
             ? new Dictionary<string, AddedSensor>()
             : config.AddedSensors

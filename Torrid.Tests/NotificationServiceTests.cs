@@ -119,4 +119,35 @@ public class NotificationServiceTests
         var alert = Assert.Single(notifier.ShownAlerts);
         Assert.Equal("VRM", alert.Label);
     }
+
+    [Fact]
+    public void Evaluate_UsesTheBandProvidedPerReading()
+    {
+        var notifier = new RecordingToastNotifier();
+        var service = new NotificationService(notifier, new FakeClock(), refireMinutes: 0);
+        var config = new AppConfig();
+        ThresholdResolver.SetCustom(config, "hw:strict", new ThresholdBand { BlueMax = 20, GreenMax = 30, YellowMax = 40 });
+        var strict = new SensorReading("hw:strict", "Strict", SensorKind.OtherTemp, null, 60);
+        var normal = new SensorReading("hw:normal", "Normal", SensorKind.OtherTemp, null, 60);
+
+        service.Evaluate(new[] { strict, normal }, r => ThresholdResolver.For(config, r));
+
+        var alert = Assert.Single(notifier.ShownAlerts);
+        Assert.Equal("Strict", alert.Label);
+    }
+
+    [Fact]
+    public void Evaluate_WithPerReadingBand_ReArmsAgainstThatSensorsOwnYellowMax()
+    {
+        var notifier = new RecordingToastNotifier();
+        var service = new NotificationService(notifier, new FakeClock(), refireMinutes: 0);
+        var band = new ThresholdBand { BlueMax = 20, GreenMax = 30, YellowMax = 40 };
+        SensorReading At(double v) => new("hw:a", "A", SensorKind.OtherTemp, null, v);
+
+        service.Evaluate(new[] { At(41) }, _ => band);
+        service.Evaluate(new[] { At(36) }, _ => band); // <= 40 - 3 -> re-armed
+        service.Evaluate(new[] { At(41) }, _ => band);
+
+        Assert.Equal(2, notifier.ShownAlerts.Count);
+    }
 }
