@@ -16,6 +16,9 @@ Torrid reads sensors through [LibreHardwareMonitor](https://github.com/LibreHard
 |---|---|---|
 | CPU temperature | Reads CPU model-specific registers through a kernel driver. LibreHardwareMonitorLib 0.9.6 uses the **PawnIO** driver for this (not the older WinRing0 driver). | Administrator rights, and the PawnIO driver installed on the system |
 | GPU temperatures (core, hot spot, VRAM) on NVIDIA cards | NVIDIA's user-mode APIs. No kernel driver of Torrid's own is involved. | Nothing extra; on the development machine they read correctly even without administrator rights |
+| Added motherboard / VRM / chipset sensors | The board's Super I/O chip (LPC bus) or embedded controller, through the **PawnIO** driver. | Administrator rights and PawnIO |
+| Added memory sensors | Temperature sensors on the memory modules, over the SMBus, through the **PawnIO** driver. | Administrator rights and PawnIO |
+| Added storage sensors | The drive's own reporting through Windows storage requests (user mode, no PawnIO). | Possibly administrator rights; not PawnIO |
 
 This is why Torrid asks to run as administrator: without it the CPU temperature reads `0`.
 
@@ -30,6 +33,21 @@ You choose the behaviour under **Settings, Anti-cheat compatibility, When an ant
 | **Pause monitoring** (default) | Torrid closes the hardware entirely and stops reading. Sensors show as paused, the tray tooltip says `paused (<product> is running)`, and no alerts are raised. When the anti-cheat exits, monitoring resumes by itself. | The safest option. You get no temperatures while the game is running. |
 | **GPU only** | Torrid keeps reading GPU temperatures and stops reading the CPU. It no longer enables the CPU hardware, which is the part that uses the PawnIO driver. | You keep GPU temperatures during the game. Whether avoiding the CPU path is enough to satisfy a given anti-cheat is not known. |
 | **Keep monitoring** | Nothing changes. Torrid only records that an anti-cheat was detected so the UI can say so. | Some games may refuse to start or may remove you from a match. Use at your own risk. |
+
+## Which hardware Torrid opens
+
+LibreHardwareMonitor reads hardware in groups, and Torrid only opens the groups it needs. Which ones depends on the anti-cheat level and on the sensors you have [added](../README.md#adding-more-sensors):
+
+| Level | CPU | GPU | Motherboard | Memory | Storage |
+|---|---|---|---|---|---|
+| **Paused** (anti-cheat running, Pause monitoring) | no | no | no | no | no |
+| **GPU only** (anti-cheat running, GPU only) | no | yes | no | no | only if you added a storage sensor |
+| **Full** (no anti-cheat, or Keep monitoring) | yes | yes | only if you added a motherboard sensor | only if you added a memory sensor | only if you added a storage sensor |
+
+- CPU, Motherboard and Memory are the groups that use the **PawnIO** driver (CPU registers, the Super I/O chip, the SMBus). **GPU only never opens any of them**, whatever you have added.
+- With nothing added, Torrid opens exactly what it always did: CPU and GPU at Full, GPU at GPU only, nothing when paused.
+- **Adding a motherboard or memory sensor makes Torrid use PawnIO for that group as well**, at the Full level only. Remove the sensor (the × on its row) and the group is closed again.
+- **Scanning** (Sensors, Add sensor, Scan for sensors) only happens when you press the button. It briefly opens every group the current level allows (all five at Full, GPU and storage at GPU only) and closes them again; while monitoring is paused it is refused and touches nothing.
 
 ## How detection works
 

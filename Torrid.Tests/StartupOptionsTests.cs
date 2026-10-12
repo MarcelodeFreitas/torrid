@@ -77,6 +77,15 @@ public class StartupOptionsTests
     }
 
     [Fact]
+    public void OpenAddSensor_OnlyAppliesToTheDemo()
+    {
+        Assert.False(StartupOptions.Parse(Array.Empty<string>()).OpenAddSensor);
+        Assert.False(StartupOptions.Parse(new[] { "--open-add-sensor" }).OpenAddSensor);
+        Assert.True(StartupOptions.Parse(new[] { "--Open-Add-Sensor", "--demo" }).OpenAddSensor);
+        Assert.True(StartupOptions.Parse(new[] { "--demo-paused", "--open-add-sensor" }).OpenAddSensor);
+    }
+
+    [Fact]
     public void ConfigFlagWithoutValue_IsIgnored()
     {
         Assert.Null(StartupOptions.Parse(new[] { "--config" }).ConfigPath);

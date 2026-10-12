@@ -67,7 +67,14 @@ public sealed class AppHost : IDisposable
         PawnIo = new PawnIoStatusTracker(options.Demo ? new DemoPawnIoDetector() : new RegistryPawnIoDetector());
 
         Home = new HomeViewModel(Sensors, Hardware, ConfigManager, PawnIo);
-        SensorsPage = new SensorsViewModel(Sensors, ConfigManager);
+        SensorsPage = new SensorsViewModel(Sensors, ConfigManager, Catalog);
+        if (options.OpenAddSensor)
+        {
+            // Screenshot aid, demo only (StartupOptions enforces it): the panel itself never scans on its own.
+            SensorsPage.AddSensor.OpenCommand.Execute(null);
+            SensorsPage.AddSensor.ScanCommand.Execute(null);
+        }
+
         ThresholdsPage = new ThresholdsViewModel(ConfigManager);
         SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware, SendTestNotification, PawnIo, UrlLauncher.Open);
         Shell = new ShellViewModel(new[]

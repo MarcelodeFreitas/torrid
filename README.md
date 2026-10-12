@@ -26,8 +26,30 @@ Most GPU monitoring tools show core temperature only. For thermal validation and
 - **Alerts.** A Windows toast fires once when a sensor enters red, with optional repeat every N minutes while it stays red. A "Send test notification" button in Settings checks that alerts reach you.
 - **Anti-cheat safety.** While a known anti-cheat is running, Torrid pauses (default), switches to GPU only, or carries on, as you choose. See [docs/anti-cheat.md](docs/anti-cheat.md).
 - **Sensible defaults.** Only the CPU temperature and GPU hot spot are shown in the window and tray at first (alerts are on for every sensor); the other sensors Torrid knows about (per device: CPU package, GPU core, GPU hot spot, GPU VRAM / memory junction) can be switched on from the Sensors page.
+- **Add any temperature sensor.** **Add sensor** on the Sensors page scans for every temperature sensor LibreHardwareMonitor can see (motherboard and VRM, chipset, storage, memory, extra CPU sensors such as CCDs or SoC, extra GPU sensors) and adds the ones you pick. Added sensors appear on Home, in the tray and in alerts like the built-in ones, each kind with its own thresholds. See [Adding more sensors](#adding-more-sensors).
 
 Settings are stored in `%AppData%\Torrid\config.json`.
+
+## Adding more sensors
+
+The built-in sensors are the CPU temperature and, per GPU, core / hot spot / memory junction. For anything else (motherboard VRM, chipset, an NVMe drive, memory modules, CPU CCDs or SoC, other GPU sensors):
+
+1. Open **Sensors** and press **Add sensor**. A panel opens above the list.
+2. Press **Scan for sensors**. Torrid lists every temperature sensor it can read, grouped by hardware, with its current value.
+3. Press **Add** next to the ones you want. They appear in the list straight away, switched on for the window (tray off, alerts on); change that with the usual switches, and rename them like any other sensor.
+4. To remove one, press the **×** at the end of its row. Built-in sensors cannot be removed, only switched off.
+
+Added sensors go into their own groups on Home and on the Sensors page (**Motherboard**, **Memory**, **Storage**, **Other**; extra CPU sensors join the CPU group, and extra GPU sensors join their GPU when Torrid can tell which card they belong to). The **Thresholds** page has a band for each kind: Other CPU sensors, Other GPU sensors, Motherboard / VRM, Storage, Memory and Other sensors.
+
+Honest limits:
+
+- **What you can add depends on your hardware.** Torrid only offers what LibreHardwareMonitor can read. Motherboard temperatures come from the board's Super I/O (or embedded controller) chip, and only chips LibreHardwareMonitor supports report anything.
+- **VRM temperature is only available on boards whose chip exposes it.** Many boards have no VRM sensor, or report it under a generic name such as "Temperature #3".
+- **Motherboard, CPU and memory sensors need administrator rights and the PawnIO driver** (see below). Without them the scan may list nothing for those parts, or values read `--`. Storage and GPU sensors do not use PawnIO (storage may still need administrator rights). The scan has only been exercised with demo data here, not on real motherboard, memory or storage hardware.
+- **"Other sensors" are best effort.** Sensors of hardware Torrid does not classify are shown when the hardware they belong to is already being read, but Torrid does not open extra hardware just for them.
+- **Scanning is manual.** Torrid never scans by itself; a scan briefly opens every hardware group the current anti-cheat setting allows (including PawnIO-backed ones). Scanning is **unavailable while an anti-cheat is running** with the default Pause setting, and covers only GPU and storage in GPU-only mode.
+- **Added motherboard or memory sensors make Torrid use PawnIO for those groups too.** Torrid only opens the hardware groups it needs: with nothing added that is CPU and GPU, exactly as before. Adding a motherboard or memory sensor adds that group (both use PawnIO), and only at the **Keep monitoring** / no-anti-cheat level; **GPU only** never opens them. Details in [docs/anti-cheat.md](docs/anti-cheat.md).
+- An added sensor that cannot be read right now (hardware removed, monitoring paused, group not allowed) keeps its row, shows `--` and "Not detected right now", and never raises an alert.
 
 ## Running it
 
@@ -72,6 +94,7 @@ Run the Debug build from `Torrid.App\bin\Debug\net8.0-windows10.0.17763.0\Torrid
 | `--config <path>` | Use this config file instead of `%AppData%\Torrid\config.json` |
 | `--page <Home\|Sensors\|Thresholds\|Settings>` | Page to open first (handy for screenshots) |
 | `--test-toast` | Send one test notification about 15 seconds after start, then exit (used by `tools\Verify-Toast.ps1`) |
+| `--open-add-sensor` | Demo only (ignored without `--demo` / `--demo-paused`): open the Sensors page's Add sensor panel and scan the demo hardware at start (for screenshots) |
 
 When testing, always pass `--config` with a temporary path so your real settings are not touched.
 

@@ -5,7 +5,8 @@ using Torrid.App.ViewModels;
 /// <summary>
 /// Command-line switches: <c>--show</c>, <c>--demo</c>, <c>--demo-paused</c> (implies <c>--demo</c>), <c>--config &lt;path&gt;</c>,
 /// and <c>--page &lt;Home|Sensors|Thresholds|Settings&gt;</c> (initial page, used for screenshots) and
-/// <c>--test-toast</c> (send one test notification ~15 s after start, then exit; used by tools/Verify-Toast.ps1).
+/// <c>--test-toast</c> (send one test notification ~15 s after start, then exit; used by tools/Verify-Toast.ps1) and
+/// <c>--open-add-sensor</c> (demo only: open the Sensors page's Add sensor panel and scan the demo catalog; used for screenshots).
 /// </summary>
 public sealed record StartupOptions(bool ShowWindow, bool Demo, bool DemoPaused, string? ConfigPath)
 {
@@ -15,6 +16,9 @@ public sealed record StartupOptions(bool ShowWindow, bool Demo, bool DemoPaused,
     /// <summary>Send a single test toast shortly after start, then exit the process.</summary>
     public bool TestToast { get; init; }
 
+    /// <summary>Open the Add sensor panel and run one scan at start. Only honoured with <c>--demo</c> (never scans real hardware).</summary>
+    public bool OpenAddSensor { get; init; }
+
     public static StartupOptions Parse(IReadOnlyList<string> args)
     {
         var show = false;
@@ -23,6 +27,7 @@ public sealed record StartupOptions(bool ShowWindow, bool Demo, bool DemoPaused,
         string? configPath = null;
         PageId? page = null;
         var testToast = false;
+        var openAddSensor = false;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -41,6 +46,9 @@ public sealed record StartupOptions(bool ShowWindow, bool Demo, bool DemoPaused,
                 case "--test-toast":
                     testToast = true;
                     break;
+                case "--open-add-sensor":
+                    openAddSensor = true;
+                    break;
                 case "--config" when i + 1 < args.Count:
                     configPath = args[++i];
                     break;
@@ -50,7 +58,12 @@ public sealed record StartupOptions(bool ShowWindow, bool Demo, bool DemoPaused,
             }
         }
 
-        return new StartupOptions(show, demo, demoPaused, configPath) { InitialPage = page, TestToast = testToast };
+        return new StartupOptions(show, demo, demoPaused, configPath)
+        {
+            InitialPage = page,
+            TestToast = testToast,
+            OpenAddSensor = openAddSensor && demo,
+        };
     }
 
     // Names only: Enum.TryParse alone would also accept numbers such as "2".

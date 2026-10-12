@@ -29,6 +29,29 @@ public class ThresholdsViewModelTests
         Assert.All(vm.Rows, r => Assert.Null(r.Error));
     }
 
+    [Theory]
+    [InlineData(SensorKind.CpuPackage, "CPU temperature", 40, 70, 85)]
+    [InlineData(SensorKind.GpuCore, "GPU core", 40, 75, 85)]
+    [InlineData(SensorKind.GpuHotSpot, "GPU hot spot", 50, 85, 95)]
+    [InlineData(SensorKind.GpuVram, "GPU memory junction (VRAM)", 50, 85, 95)]
+    [InlineData(SensorKind.CpuOther, "Other CPU sensors", 40, 70, 85)]
+    [InlineData(SensorKind.GpuOther, "Other GPU sensors", 50, 85, 95)]
+    [InlineData(SensorKind.Motherboard, "Motherboard / VRM", 45, 70, 90)]
+    [InlineData(SensorKind.Storage, "Storage", 40, 55, 70)]
+    [InlineData(SensorKind.Memory, "Memory", 40, 60, 80)]
+    [InlineData(SensorKind.OtherTemp, "Other sensors", 45, 70, 85)]
+    public void Rows_ExistForEveryKind_WithTheirTitleAndDefaultBand(
+        SensorKind kind, string title, double blue, double green, double yellow)
+    {
+        var (vm, _) = Make();
+
+        var row = Row(vm, kind);
+        Assert.Equal(title, row.Title);
+        Assert.Equal((blue, green, yellow), (row.BlueMax, row.GreenMax, row.YellowMax));
+        Assert.Null(row.Error);
+        Assert.Equal(10, vm.Rows.Count);
+    }
+
     [Fact]
     public void InvalidBandInConfig_IsShownWithAnError_AndLeftAlone()
     {

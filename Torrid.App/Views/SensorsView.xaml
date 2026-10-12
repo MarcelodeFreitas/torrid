@@ -7,6 +7,7 @@
         <!-- Column widths shared by the group header labels and every row so the toggles line up. -->
         <GridLength x:Key="ValueColumnWidth">80</GridLength>
         <GridLength x:Key="ToggleColumnWidth">66</GridLength>
+        <GridLength x:Key="RemoveColumnWidth">36</GridLength>
 
         <Style x:Key="RowValueStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="15"/>
@@ -34,6 +35,7 @@
                         <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
                         <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
                         <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
+                        <ColumnDefinition Width="{StaticResource RemoveColumnWidth}"/>
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
@@ -67,6 +69,14 @@
                     <CheckBox Grid.Column="4" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Center"
                               IsChecked="{Binding Notify}" AutomationProperties.Name="Alerts"
                               ToolTip="Notify when this sensor turns red"/>
+
+                    <!-- Only sensors added from the Add sensor panel can be removed; built-in rows leave this column empty. -->
+                    <Button Grid.Column="5" Style="{StaticResource IconButtonStyle}" Content="&#xE711;"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Command="{Binding RemoveCommand}"
+                            Visibility="{Binding IsAdded, Converter={StaticResource BoolToVisibility}}"
+                            ToolTip="Remove this sensor" ToolTipService.InitialShowDelay="300"
+                            AutomationProperties.Name="{Binding DefaultLabel, StringFormat='Remove {0}'}"/>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -81,6 +91,7 @@
                         <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
                         <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
                         <ColumnDefinition Width="{StaticResource ToggleColumnWidth}"/>
+                        <ColumnDefinition Width="{StaticResource RemoveColumnWidth}"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" TextTrimming="CharacterEllipsis" VerticalAlignment="Bottom">
                         <Run Text="{Binding Title, Mode=OneWay, Converter={StaticResource SpacedCaps}}" FontSize="13"
@@ -93,6 +104,67 @@
                     <TextBlock Grid.Column="4" Text="Alerts" Style="{StaticResource ColumnHeaderStyle}"/>
                 </Grid>
                 <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource SensorRowTemplate}" Focusable="False"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- ===== Add sensor panel ===== -->
+        <DataTemplate x:Key="AddSensorItemTemplate" DataType="{x:Type vm:AddSensorItemViewModel}">
+            <Grid Margin="14,0,8,0" MinHeight="44">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="{StaticResource ValueColumnWidth}"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" FontSize="14" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" Margin="0,0,12,0"/>
+                <TextBlock Grid.Column="1" Text="{Binding ValueText}" FontSize="13" HorizontalAlignment="Right"
+                           VerticalAlignment="Center" Margin="0,0,16,0" Foreground="{StaticResource TextSecondaryBrush}"/>
+                <Button x:Name="AddButton" Grid.Column="2" Style="{StaticResource SecondaryButtonStyle}" MinWidth="88" Padding="12,3" MinHeight="28"
+                        FontSize="12" VerticalAlignment="Center" Command="{Binding AddCommand}"
+                        AutomationProperties.Name="{Binding Name, StringFormat='Add {0}'}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="Glyph" Style="{StaticResource IconTextStyle}" Text="&#xE710;" FontSize="11"
+                                   Margin="0,1,6,0" VerticalAlignment="Center"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                        <TextBlock Text="{Binding AddButtonText}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+            <DataTemplate.Triggers>
+                <!-- Once added, the button reads as a quiet status ("✓ Added") rather than a disabled button. -->
+                <DataTrigger Binding="{Binding IsAdded}" Value="True">
+                    <Setter TargetName="Glyph" Property="Text" Value="&#xE73E;"/>
+                    <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource ZoneGreenBrush}"/>
+                    <Setter TargetName="AddButton" Property="Background" Value="Transparent"/>
+                    <Setter TargetName="AddButton" Property="BorderBrush" Value="Transparent"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AddSensorGroupTemplate" DataType="{x:Type vm:AddSensorGroupViewModel}">
+            <StackPanel Margin="0,18,0,0">
+                <TextBlock Text="{Binding HardwareName, Converter={StaticResource SpacedCaps}}" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="2,0,0,7"
+                           TextTrimming="CharacterEllipsis" ToolTip="{Binding HardwareName}"/>
+                <Border CornerRadius="8" Background="{StaticResource InputBackgroundBrush}"
+                        BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" SnapsToDevicePixels="True">
+                    <ItemsControl ItemsSource="{Binding Items}" Focusable="False" Margin="0,2">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <!-- Hairline between rows (not above the first one). -->
+                                    <Border x:Name="Separator" Height="1" Margin="14,0" Background="{StaticResource TrackBrush}"/>
+                                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource AddSensorItemTemplate}"/>
+                                </StackPanel>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource PreviousData}}" Value="{x:Null}">
+                                        <Setter TargetName="Separator" Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
             </StackPanel>
         </DataTemplate>
     </UserControl.Resources>
@@ -113,21 +185,61 @@
                 <TextBlock Style="{StaticResource PageSubtitleStyle}"
                            Text="Choose what appears in the window, in the tray and in alerts. Rename a sensor to tell identical cards apart."/>
             </StackPanel>
-            <Button Grid.Column="1" Style="{StaticResource SecondaryButtonStyle}" VerticalAlignment="Top" Margin="0,4,0,0"
-                    Command="{Binding ResetToDefaultsCommand}"
-                    ToolTip="Clear every name and switch back to the built-in defaults">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE72C;" FontSize="12" Margin="0,1,8,0"
-                               VerticalAlignment="Center"/>
-                    <TextBlock Text="Reset to defaults" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top" Margin="0,4,0,0">
+                <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding AddSensor.OpenCommand}"
+                        ToolTip="Find more temperature sensors: motherboard and VRM, storage, memory, extra CPU sensors">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE710;" FontSize="12" Margin="0,1,8,0"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="Add sensor" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"
+                        Command="{Binding ResetToDefaultsCommand}"
+                        ToolTip="Clear every name and switch back to the built-in defaults">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE72C;" FontSize="12" Margin="0,1,8,0"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="Reset to defaults" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <ScrollViewer Grid.Row="1" Margin="0,24,0,0" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled" Focusable="False">
-            <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource SensorGroupTemplate}"
-                          Focusable="False" Margin="0,0,14,8"/>
+            <StackPanel Margin="0,0,14,8">
+                <!-- Inline Add sensor panel (not a dialog): a card above the list, only while open. -->
+                <Border Style="{StaticResource PanelCardStyle}" Margin="0,0,0,24" DataContext="{Binding AddSensor}"
+                        Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="Add a sensor" Style="{StaticResource CardTitleStyle}"/>
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,6,0,0" FontSize="13"
+                                   Foreground="{StaticResource TextSecondaryBrush}" MaxWidth="640" HorizontalAlignment="Left"
+                                   Text="Scans your hardware for temperature sensors. Scanning briefly accesses the hardware drivers (including PawnIO for motherboard and memory sensors) and is unavailable while an anti-cheat is running."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ScanCommand}" MinWidth="156">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE721;" FontSize="12" Margin="0,1,8,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                    <TextBlock Text="{Binding ScanButtonText}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Close" Margin="8,0,0,0" MinWidth="80"
+                                    Command="{Binding CloseCommand}" ToolTip="Close the panel and discard the scan results"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding Message}" Margin="2,14,0,0" FontSize="13" TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Visibility="{Binding HasMessage, Converter={StaticResource BoolToVisibility}}"/>
+                        <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource AddSensorGroupTemplate}"
+                                      Focusable="False"/>
+                    </StackPanel>
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource SensorGroupTemplate}"
+                              Focusable="False"/>
+            </StackPanel>
         </ScrollViewer>
     </Grid>
 </UserControl>

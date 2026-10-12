@@ -7,9 +7,9 @@ using Torrid.Core.Models;
 using Torrid.Core.Sensors;
 
 /// <summary>
-/// The Sensors page: every sensor that is detected now or has saved preferences, grouped by device, with live-applying
-/// name / Window / Tray / Alerts edits. Lives as long as the app (held by <see cref="AppHost"/>), so the event
-/// subscriptions below are never removed.
+/// The Sensors page: every sensor that is detected now, has saved preferences or was added by the user, grouped by device,
+/// with live-applying name / Window / Tray / Alerts edits and the inline Add sensor panel. Lives as long as the app (held by
+/// <see cref="AppHost"/>), so the event subscriptions below are never removed.
 /// </summary>
 public sealed class SensorsViewModel : ObservableObject
 {
@@ -17,13 +17,14 @@ public sealed class SensorsViewModel : ObservableObject
     private readonly ConfigManager _config;
     private readonly Dictionary<string, SensorGroupViewModel> _groupsByKey = new();
     private readonly Dictionary<string, SensorListItemViewModel> _itemsById = new();
-    private List<string> _rowIds = new();
+    private List<string> _rowKeys = new();
 
-    public SensorsViewModel(ISensorSource sensors, ConfigManager config)
+    public SensorsViewModel(ISensorSource sensors, ConfigManager config, ISensorCatalogSource? catalog = null)
     {
         _sensors = sensors;
         _config = config;
 
+        AddSensor = new AddSensorViewModel(catalog, config);
         ResetToDefaultsCommand = new RelayCommand(_ => _config.Update(c => c.Sensors = new Dictionary<string, SensorPreference>()));
 
         // Readings arrive on the poll thread; always hop to the UI thread before touching bound collections.
@@ -35,12 +36,21 @@ public sealed class SensorsViewModel : ObservableObject
 
     public ObservableCollection<SensorGroupViewModel> Groups { get; } = new();
 
+    /// <summary>The inline "Add a sensor" panel shown above the list.</summary>
+    public AddSensorViewModel AddSensor { get; }
+
     public ICommand ResetToDefaultsCommand { get; }
+
+    private sealed record Row(SensorIdentity Identity, DeviceGroup Group, string? HardwareName)
+    {
+        /// <summary>Identifies the row and its placement: a change means a rebuild rather than a value refresh.</summary>
+        public string Key => Identity.Id + "|" + Group.Key;
+    }
 
     private void OnReadingsUpdated()
     {
         var readings = CurrentReadings();
-        if (DesiredRows(readings).Select(i => i.Id).SequenceEqual(_rowIds))
+        if (DesiredRows(readings).Select(r => r.Key).SequenceEqual(_rowKeys))
         {
             // Same rows: only refresh the live values on the existing instances.
             UpdateLiveValues(readings);
@@ -56,24 +66,25 @@ public sealed class SensorsViewModel : ObservableObject
         var config = _config.Config;
         var readings = CurrentReadings();
         var rows = DesiredRows(readings);
-        var ids = rows.Select(i => i.Id).ToList();
 
         var desiredGroups = new List<SensorGroupViewModel>();
-        foreach (var device in rows.GroupBy(identity => identity.GpuIndex))
+        foreach (var device in rows.GroupBy(r => r.Group))
         {
-            var key = device.Key is int index ? $"gpu{index}" : "cpu";
+            var key = device.Key.Key;
             if (!_groupsByKey.TryGetValue(key, out var group))
             {
-                group = new SensorGroupViewModel(key, device.Key is int i ? $"GPU {i}" : "CPU");
+                group = new SensorGroupViewModel(key, device.Key.Title);
                 _groupsByKey[key] = group;
             }
 
             var desiredItems = new List<SensorListItemViewModel>();
-            foreach (var identity in device)
+            foreach (var row in device)
             {
-                if (!_itemsById.TryGetValue(identity.Id, out var item))
+                var identity = row.Identity;
+                if (!_itemsById.TryGetValue(identity.Id, out var item) || item.Identity != identity)
                 {
-                    item = new SensorListItemViewModel(identity, _config);
+                    // A changed identity (e.g. a re-added sensor with another kind) needs a fresh row.
+                    item = new SensorListItemViewModel(identity, _config, AddSensor.Remove);
                     _itemsById[identity.Id] = item;
                 }
 
@@ -88,9 +99,9 @@ public sealed class SensorsViewModel : ObservableObject
         CollectionSync.Sync(Groups, desiredGroups);
 
         foreach (var stale in _groupsByKey.Keys.Except(desiredGroups.Select(g => g.Key)).ToList()) _groupsByKey.Remove(stale);
-        foreach (var stale in _itemsById.Keys.Except(ids).ToList()) _itemsById.Remove(stale);
+        foreach (var stale in _itemsById.Keys.Except(rows.Select(r => r.Identity.Id)).ToList()) _itemsById.Remove(stale);
 
-        _rowIds = ids;
+        _rowKeys = rows.Select(r => r.Key).ToList();
         UpdateLiveValues(readings);
     }
 
@@ -101,9 +112,7 @@ public sealed class SensorsViewModel : ObservableObject
 
         foreach (var group in Groups)
         {
-            group.Subtitle = readings.Where(r => r.GpuIndex == group.Items.FirstOrDefault()?.Identity.GpuIndex)
-                .Select(r => r.HardwareName)
-                .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n));
+            group.Subtitle = DeviceGroups.Subtitle(group.Items.Select(i => byId.GetValueOrDefault(i.Id)?.HardwareName ?? StoredHardwareName(config, i.Id)));
 
             foreach (var item in group.Items)
             {
@@ -113,22 +122,61 @@ public sealed class SensorsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Detected ids plus every parsable configured id; CPU first, then GPUs by index, then kind order.</summary>
-    private List<SensorIdentity> DesiredRows(IReadOnlyList<SensorReading> readings)
+    /// <summary>
+    /// Detected ids, configured ids and added ids that <see cref="SensorDisplay.Identity"/> accepts (a <c>hw:</c> id only
+    /// while it is in <see cref="AppConfig.AddedSensors"/>, so garbage keys and just-removed sensors get no row);
+    /// ordered CPU, GPUs by index, Motherboard, Memory, Storage, Other, then by kind and name.
+    /// </summary>
+    private List<Row> DesiredRows(IReadOnlyList<SensorReading> readings)
     {
+        var config = _config.Config;
         var identities = new Dictionary<string, SensorIdentity>();
-        foreach (var reading in readings) identities.TryAdd(reading.Id, SensorIdentity.FromReading(reading));
-        foreach (var key in _config.Config.Sensors.Keys)
+        var hardwareNames = new Dictionary<string, string?>();
+
+        foreach (var reading in readings)
         {
-            if (!identities.ContainsKey(key) && SensorIdentity.TryParse(key) is { } parsed) identities[key] = parsed;
+            if (reading is null || identities.ContainsKey(reading.Id)) continue;
+
+            var identity = SensorIdentity.IsGenericId(reading.Id)
+                ? SensorDisplay.Identity(config, reading.Id)
+                : SensorIdentity.FromReading(reading);
+            if (identity is null) continue;
+
+            identities[reading.Id] = identity;
+            hardwareNames[reading.Id] = reading.HardwareName;
         }
 
+        foreach (var key in config.Sensors.Keys)
+        {
+            if (!identities.ContainsKey(key) && SensorDisplay.Identity(config, key) is { } parsed) identities[key] = parsed;
+        }
+
+        foreach (var key in (config.AddedSensors ?? new Dictionary<string, AddedSensor>()).Keys)
+        {
+            if (!identities.ContainsKey(key) && SensorIdentity.IsGenericId(key) && SensorDisplay.Identity(config, key) is { } added)
+            {
+                identities[key] = added;
+            }
+        }
+
+        var gpuNames = DeviceGroups.GpuNames(readings.Where(r => r is not null));
         return identities.Values
-            .OrderBy(i => i.GpuIndex ?? -1)
-            .ThenBy(i => i.Kind)
-            .ThenBy(i => i.Id, StringComparer.Ordinal)
+            .Select(identity =>
+            {
+                var hardware = hardwareNames.GetValueOrDefault(identity.Id) ?? StoredHardwareName(config, identity.Id);
+                return new Row(identity, DeviceGroups.For(identity.Kind, identity.GpuIndex, hardware, gpuNames), hardware);
+            })
+            .OrderBy(r => r.Group.Rank)
+            .ThenBy(r => r.Group.Index)
+            .ThenBy(r => r.Identity.Kind)
+            .ThenBy(r => r.HardwareName ?? "", StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.Identity.DefaultLabel, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.Identity.Id, StringComparer.Ordinal)
             .ToList();
     }
+
+    private static string? StoredHardwareName(AppConfig config, string id) =>
+        SensorIdentity.IsGenericId(id) ? config.AddedSensors?.GetValueOrDefault(id)?.HardwareName : null;
 
     private IReadOnlyList<SensorReading> CurrentReadings() => _sensors.CurrentReadings ?? Array.Empty<SensorReading>();
 }

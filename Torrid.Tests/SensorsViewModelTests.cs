@@ -270,6 +270,164 @@ public class SensorsViewModelTests
         Assert.True(Item(vm, "cpu").IsDetected);
     }
 
+    private const string Board = "ASUS ROG CROSSHAIR VIII";
+    private const string VrmId = "hw:/lpc/nct6798d/0/temperature/4";
+    private const string CcdId = "hw:/amdcpu/0/temperature/3";
+    private const string NvmeId = "hw:/nvme/0/temperature/0";
+    private const string RamId = "hw:/ram/temperature/0";
+    private const string GpuExtraId = "hw:/gpu-nvidia/0/temperature/3";
+    private const string OtherId = "hw:/battery/0/temperature/0";
+
+    private static AppConfig WithAdded(params (string Id, string Name, string? Hardware, SensorKind Kind)[] sensors)
+    {
+        var config = new AppConfig
+        {
+            AddedSensors = sensors.ToDictionary(
+                s => s.Id, s => new AddedSensor { Name = s.Name, HardwareName = s.Hardware, Kind = s.Kind }),
+        };
+        foreach (var s in sensors) config.Sensors[s.Id] = new SensorPreference { ShowInWindow = true };
+        return config;
+    }
+
+    private static SensorReading AddedReading(string id, string name, SensorKind kind, double? value, string? hardware) =>
+        new(id, name, kind, null, value, hardware, value is null ? null : name);
+
+    [Fact]
+    public void AddedButUndetectedSensor_HasARow_NotDetectedRightNow_WithTheStoredNameAndKind()
+    {
+        var config = WithAdded((VrmId, "VRM", Board, SensorKind.Motherboard));
+
+        var (vm, _, _) = Make(config, CpuAndGpu0());
+
+        var vrm = Item(vm, VrmId);
+        Assert.Equal("VRM", vrm.Label);
+        Assert.Equal(SensorKind.Motherboard, vrm.Identity.Kind);
+        Assert.False(vrm.IsDetected);
+        Assert.Contains(SensorListItemViewModel.NotDetectedText, vrm.Caption);
+        Assert.Equal("--", vrm.ValueText);
+        Assert.True(vrm.ShowInWindow);
+    }
+
+    [Fact]
+    public void AddedSensorWhoseReadingIsTheNotFoundPlaceholder_IsNotDetected()
+    {
+        // SensorReadingBuilder yields a null value and no source sensor name for an added id it cannot find.
+        var config = WithAdded((VrmId, "VRM", Board, SensorKind.Motherboard));
+        var readings = CpuAndGpu0().Append(AddedReading(VrmId, "VRM", SensorKind.Motherboard, null, Board)).ToList();
+
+        var (vm, _, _) = Make(config, readings);
+
+        var vrm = Item(vm, VrmId);
+        Assert.False(vrm.IsDetected);
+        Assert.Contains(SensorListItemViewModel.NotDetectedText, vrm.Caption);
+        Assert.Contains(Board, vrm.Caption);
+    }
+
+    [Fact]
+    public void AddedAndDetectedSensor_ShowsItsValueAndRealNames()
+    {
+        var config = WithAdded((VrmId, "VRM", Board, SensorKind.Motherboard));
+        var readings = CpuAndGpu0().Append(AddedReading(VrmId, "VRM", SensorKind.Motherboard, 52.4, Board)).ToList();
+
+        var (vm, _, _) = Make(config, readings);
+
+        var vrm = Item(vm, VrmId);
+        Assert.True(vrm.IsDetected);
+        Assert.Equal("52 °C", vrm.ValueText);
+        Assert.Equal($"VRM · {Board}", vrm.Caption);
+    }
+
+    [Fact]
+    public void GarbageAddedSensorKeys_AndUnknownGenericPreferenceKeys_AreIgnored()
+    {
+        var config = new AppConfig();
+        config.AddedSensors["garbage"] = new AddedSensor { Name = "Nope", Kind = SensorKind.Motherboard };
+        config.AddedSensors["hw:/a b"] = new AddedSensor { Name = "Spaces", Kind = SensorKind.Motherboard };
+        config.AddedSensors["hw:"] = new AddedSensor { Name = "Empty", Kind = SensorKind.Motherboard };
+        config.AddedSensors["cpu"] = new AddedSensor { Name = "Not generic", Kind = SensorKind.Motherboard };
+        config.Sensors["hw:/not/added"] = new SensorPreference { ShowInWindow = true };
+
+        var (vm, _, _) = Make(config, CpuAndGpu0());
+
+        Assert.Equal(new[] { "cpu", "gpu0-core", "gpu0-hotspot", "gpu0-vram" }, vm.Groups.SelectMany(g => g.Items).Select(i => i.Id));
+        Assert.False(Item(vm, "cpu").IsAdded);
+    }
+
+    [Fact]
+    public void AReadingForARemovedGenericId_DoesNotProduceARow()
+    {
+        var readings = CpuAndGpu0().Append(AddedReading(VrmId, "VRM", SensorKind.Motherboard, 50, Board)).ToList();
+
+        var (vm, _, _) = Make(readings: readings);
+
+        Assert.DoesNotContain(vm.Groups.SelectMany(g => g.Items), i => i.Id == VrmId);
+    }
+
+    [Fact]
+    public void AddedSensors_AreGroupedByKind_WithTheirTitlesAndOrder()
+    {
+        var config = WithAdded(
+            (OtherId, "Battery", "Battery", SensorKind.OtherTemp),
+            (NvmeId, "Composite", "Samsung SSD 980 PRO 1TB", SensorKind.Storage),
+            (RamId, "DIMM #1", "G.Skill", SensorKind.Memory),
+            (VrmId, "VRM", Board, SensorKind.Motherboard),
+            (CcdId, "CCD1 (Tdie)", Cpu5950X, SensorKind.CpuOther));
+
+        var (vm, _, _) = Make(config, CpuAndGpu0());
+
+        Assert.Equal(new[] { "CPU", "GPU 0", "Motherboard", "Memory", "Storage", "Other" }, vm.Groups.Select(g => g.Title));
+        Assert.Equal(new[] { "cpu", CcdId }, vm.Groups[0].Items.Select(i => i.Id));
+        Assert.Equal(Board, vm.Groups.Single(g => g.Title == "Motherboard").Subtitle);
+        Assert.Equal("Samsung SSD 980 PRO 1TB", vm.Groups.Single(g => g.Title == "Storage").Subtitle);
+        Assert.Equal(Cpu5950X, vm.Groups[0].Subtitle);
+    }
+
+    [Fact]
+    public void AddedGpuSensor_JoinsTheGpuWithTheSameHardwareName_OtherwiseOther()
+    {
+        var config = WithAdded((GpuExtraId, "GPU Memory Temp", Rtx3090, SensorKind.GpuOther));
+
+        var (vm, source, _) = Make(config, CpuAndGpu0());
+
+        Assert.Equal(new[] { "CPU", "GPU 0" }, vm.Groups.Select(g => g.Title));
+        Assert.Contains(vm.Groups[1].Items, i => i.Id == GpuExtraId);
+
+        // Two GPUs with the same name: the sensor can't be tied to one of them.
+        source.Publish(CpuAndGpu0().Append(Gpu(1, SensorKind.GpuHotSpot)).ToList());
+
+        Assert.Equal(new[] { "CPU", "GPU 0", "GPU 1", "Other" }, vm.Groups.Select(g => g.Title));
+        Assert.Equal(new[] { GpuExtraId }, vm.Groups[^1].Items.Select(i => i.Id));
+    }
+
+    [Fact]
+    public void RemoveButton_IsOnlyOnAddedRows_AndRemovesTheSensorAndItsPreferences()
+    {
+        var config = WithAdded((VrmId, "VRM", Board, SensorKind.Motherboard));
+        var (vm, _, manager) = Make(config, CpuAndGpu0());
+        var before = manager.Config.AddedSensors;
+
+        Assert.All(vm.Groups.SelectMany(g => g.Items).Where(i => i.Id != VrmId), i => Assert.False(i.IsAdded));
+        var vrm = Item(vm, VrmId);
+        Assert.True(vrm.IsAdded);
+
+        vrm.RemoveCommand.Execute(null);
+
+        Assert.NotSame(before, manager.Config.AddedSensors);
+        Assert.Empty(manager.Config.AddedSensors);
+        Assert.False(manager.Config.Sensors.ContainsKey(VrmId));
+        Assert.DoesNotContain(vm.Groups.SelectMany(g => g.Items), i => i.Id == VrmId);
+        Assert.DoesNotContain(vm.Groups, g => g.Title == "Motherboard");
+    }
+
+    [Fact]
+    public void AddSensorPanel_IsAvailableAndClosedByDefault()
+    {
+        var (vm, _, _) = Make(readings: CpuAndGpu0());
+
+        Assert.NotNull(vm.AddSensor);
+        Assert.False(vm.AddSensor.IsOpen);
+    }
+
     [Fact]
     public void ConfigChangedElsewhere_RefreshesRows()
     {

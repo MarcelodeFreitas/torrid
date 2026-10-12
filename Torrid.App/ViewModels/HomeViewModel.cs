@@ -108,11 +108,14 @@ public sealed class HomeViewModel : ObservableObject
         var config = _config.Config;
         var readings = _sensors.CurrentReadings ?? Array.Empty<SensorReading>();
 
+        // Built-in sensors group by GPU index (CPU otherwise); added sensors by kind ("Motherboard", "Storage", ...).
+        var gpuNames = DeviceGroups.GpuNames(readings);
         var shownGroups = readings
             .DistinctBy(r => r.Id)
             .Where(r => SensorDisplay.IsShownInWindow(config, r))
-            .GroupBy(r => r.GpuIndex)
-            .OrderBy(g => g.Key ?? -1)
+            .GroupBy(r => DeviceGroups.For(r.Kind, r.GpuIndex, r.HardwareName, gpuNames))
+            .OrderBy(g => g.Key.Rank)
+            .ThenBy(g => g.Key.Index)
             .ToList();
 
         var desiredGroups = new List<DeviceGroupViewModel>();
@@ -120,16 +123,19 @@ public sealed class HomeViewModel : ObservableObject
 
         foreach (var readingsInGroup in shownGroups)
         {
-            var key = readingsInGroup.Key is int index ? $"gpu{index}" : "cpu";
+            var key = readingsInGroup.Key.Key;
             if (!_groupsByKey.TryGetValue(key, out var group))
             {
-                var title = readingsInGroup.Key is int i ? $"GPU {i}" : "CPU";
-                group = new DeviceGroupViewModel(key, title);
+                group = new DeviceGroupViewModel(key, readingsInGroup.Key.Title);
                 _groupsByKey[key] = group;
             }
 
-            var ordered = readingsInGroup.OrderBy(r => r.Kind).ToList();
-            group.Subtitle = ordered.Select(r => r.HardwareName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n));
+            var ordered = readingsInGroup
+                .OrderBy(r => r.Kind)
+                .ThenBy(r => r.HardwareName ?? "", StringComparer.OrdinalIgnoreCase)
+                .ThenBy(r => r.Label, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            group.Subtitle = DeviceGroups.Subtitle(ordered.Select(r => r.HardwareName));
 
             var desiredCards = new List<SensorCardViewModel>();
             foreach (var reading in ordered)

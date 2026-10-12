@@ -279,6 +279,79 @@ public class HomeViewModelTests
         Assert.DoesNotContain("switched on", vm.EmptyMessage);
     }
 
+    private const string Board = "ASUS ROG CROSSHAIR VIII";
+    private const string VrmId = "hw:/lpc/nct6798d/0/temperature/4";
+
+    private static AppConfig WithAddedVrm(bool? window)
+    {
+        var config = new AppConfig
+        {
+            AddedSensors = new Dictionary<string, AddedSensor>
+            {
+                [VrmId] = new() { Name = "VRM", HardwareName = Board, Kind = SensorKind.Motherboard },
+            },
+        };
+        if (window is not null) config.Sensors[VrmId] = new SensorPreference { ShowInWindow = window };
+        return config;
+    }
+
+    private static SensorReading Vrm(double? value = 52) =>
+        new(VrmId, "VRM", SensorKind.Motherboard, null, value, Board, "VRM");
+
+    [Fact]
+    public void AddedMotherboardSensor_WithWindowOn_GetsACardInAMotherboardGroup()
+    {
+        var (vm, source, _) = Make(WithAddedVrm(window: true));
+
+        source.Publish(AllGpu0AndCpu().Append(Vrm()).ToList());
+
+        Assert.Equal(new[] { "CPU", "GPU 0", "Motherboard" }, vm.Groups.Select(g => g.Title));
+        var group = vm.Groups[2];
+        Assert.Equal(Board, group.Subtitle);
+        var card = Assert.Single(group.Cards);
+        Assert.Equal(VrmId, card.Id);
+        Assert.Equal("VRM", card.Label);
+        Assert.Equal("VRM", card.Caption);
+        Assert.Equal("52", card.ValueText);
+        Assert.Equal(ColorZone.Green, card.Zone);
+        Assert.Equal(Cpu5950X, vm.Groups[0].Subtitle);
+    }
+
+    [Fact]
+    public void AddedMotherboardSensor_WithWindowOff_IsHidden()
+    {
+        var (vm, source, _) = Make(WithAddedVrm(window: false));
+
+        source.Publish(AllGpu0AndCpu().Append(Vrm()).ToList());
+
+        Assert.Equal(new[] { "CPU", "GPU 0" }, vm.Groups.Select(g => g.Title));
+        Assert.DoesNotContain(vm.Groups.SelectMany(g => g.Cards), c => c.Id == VrmId);
+    }
+
+    [Fact]
+    public void AddedCpuSensor_JoinsTheCpuGroup_AndOtherKindsGetTheirOwnTitles()
+    {
+        var config = new AppConfig();
+        var extra = new (string Id, SensorKind Kind, string Hardware)[]
+        {
+            ("hw:/amdcpu/0/temperature/3", SensorKind.CpuOther, Cpu5950X),
+            ("hw:/ram/temperature/0", SensorKind.Memory, "DIMM"),
+            ("hw:/nvme/0/temperature/0", SensorKind.Storage, "SSD"),
+            ("hw:/battery/temperature/0", SensorKind.OtherTemp, "Battery"),
+            ("hw:/gpu-nvidia/0/temperature/9", SensorKind.GpuOther, "Unknown GPU"),
+        };
+        foreach (var e in extra) config.Sensors[e.Id] = new SensorPreference { ShowInWindow = true };
+        var (vm, source, _) = Make(config);
+
+        source.Publish(AllGpu0AndCpu()
+            .Concat(extra.Select(e => new SensorReading(e.Id, e.Kind.ToString(), e.Kind, null, 40, e.Hardware, "x")))
+            .ToList());
+
+        Assert.Equal(new[] { "CPU", "GPU 0", "Memory", "Storage", "Other" }, vm.Groups.Select(g => g.Title));
+        Assert.Equal(new[] { "cpu", "hw:/amdcpu/0/temperature/3" }, vm.Groups[0].Cards.Select(c => c.Id));
+        Assert.Equal(2, vm.Groups[^1].Cards.Count);
+    }
+
     [Fact]
     public void ReadingsDisappearing_ClearsTheGroups()
     {

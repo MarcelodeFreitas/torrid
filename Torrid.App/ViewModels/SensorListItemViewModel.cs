@@ -25,12 +25,15 @@ public sealed class SensorListItemViewModel : ObservableObject
     private bool _notify;
     private bool _hasCustomLabel;
 
-    public SensorListItemViewModel(SensorIdentity identity, ConfigManager config)
+    /// <param name="remove">Removes an added (<c>hw:</c>) sensor; built-in rows have no Remove button.</param>
+    public SensorListItemViewModel(SensorIdentity identity, ConfigManager config, Action<string>? remove = null)
     {
         Identity = identity;
         _config = config;
         _label = identity.DefaultLabel;
+        IsAdded = SensorIdentity.IsGenericId(identity.Id) && remove is not null;
         ResetLabelCommand = new RelayCommand(_ => Label = DefaultLabel);
+        RemoveCommand = new RelayCommand(_ => remove?.Invoke(Id), _ => IsAdded);
     }
 
     public SensorIdentity Identity { get; }
@@ -109,6 +112,11 @@ public sealed class SensorListItemViewModel : ObservableObject
 
     public ICommand ResetLabelCommand { get; }
 
+    /// <summary>A sensor the user added from the Add sensor panel (it shows a Remove button).</summary>
+    public bool IsAdded { get; }
+
+    public ICommand RemoveCommand { get; }
+
     /// <summary>Refreshes the preference-derived state from the config (no writes).</summary>
     public void RefreshPreferences(AppConfig config)
     {
@@ -123,11 +131,14 @@ public sealed class SensorListItemViewModel : ObservableObject
     /// <summary>Refreshes the live part (caption, value, zone). <paramref name="reading"/> is null when not detected.</summary>
     public void UpdateReading(SensorReading? reading, ThresholdBand? band)
     {
+        // An added sensor the hardware tree doesn't contain comes back as a placeholder: no value and no source name.
+        if (IsAdded && reading is { ValueCelsius: null, SourceSensorName: null }) reading = null;
+
         IsDetected = reading is not null;
 
         if (reading is null)
         {
-            Caption = $"{KindName(Identity.Kind)} · {NotDetectedText}";
+            Caption = NotDetectedCaption();
             ValueText = "--";
             HasValue = false;
             Zone = ColorZone.Blue;
@@ -150,6 +161,15 @@ public sealed class SensorListItemViewModel : ObservableObject
             Zone = ColorZone.Blue;
         }
     }
+
+    /// <summary>
+    /// Built-in rows: "{kind} · Not detected right now". Added rows lead with the note and name the stored hardware
+    /// (the most useful hint), so the note survives the caption being trimmed in a narrow window.
+    /// </summary>
+    private string NotDetectedCaption() =>
+        IsAdded && _config.Config.AddedSensors?.GetValueOrDefault(Id)?.HardwareName is { } hardware && !string.IsNullOrWhiteSpace(hardware)
+            ? $"{NotDetectedText} · {hardware}"
+            : $"{KindName(Identity.Kind)} · {NotDetectedText}";
 
     public static string KindName(SensorKind kind) => kind switch
     {
