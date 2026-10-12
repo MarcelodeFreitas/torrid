@@ -38,6 +38,46 @@ public class SensorServicePausedTests
     }
 
     [Fact]
+    public async Task ScanAsync_WhilePaused_ReturnsTheReasonAndNoSensorsWithoutOpeningHardware()
+    {
+        using var service = new SensorService(60_000, processLister: new FakeLister());
+
+        var result = await service.ScanAsync();
+
+        Assert.Empty(result.Sensors);
+        Assert.Equal("Monitoring is paused while Riot Vanguard is running.", result.UnavailableReason);
+    }
+
+    [Fact]
+    public async Task ScanAsync_WhenProcessListingThrows_ReportsTheFailureWithoutOpeningHardware()
+    {
+        using var service = new SensorService(60_000, behavior: () => AntiCheatBehavior.Continue, processLister: new ThrowingLister());
+
+        var result = await service.ScanAsync();
+
+        Assert.Empty(result.Sensors);
+        Assert.Equal("Couldn't scan hardware: boom", result.UnavailableReason);
+    }
+
+    [Fact]
+    public void PausedAtLaunch_WithAddedSensors_ExposesNullReadingsForThemAfterTheCpu()
+    {
+        var added = new Dictionary<string, Torrid.Core.Config.AddedSensor>
+        {
+            ["hw:/lpc/nct6798d/0/temperature/4"] = new() { Name = "VRM", HardwareName = "Board", Kind = SensorKind.Motherboard },
+            ["not-a-valid-id"] = new() { Name = "Garbage", Kind = SensorKind.Motherboard },
+        };
+
+        using var service = new SensorService(60_000, processLister: new FakeLister(), addedSensors: () => added);
+
+        Assert.Equal(new[] { "cpu", "hw:/lpc/nct6798d/0/temperature/4" }, service.CurrentReadings.Select(r => r.Id));
+        var vrm = service.CurrentReadings[1];
+        Assert.Equal("VRM", vrm.Label);
+        Assert.Equal(SensorKind.Motherboard, vrm.Kind);
+        Assert.Null(vrm.ValueCelsius);
+    }
+
+    [Fact]
     public void ToUnavailableThenCpuPlaceholder_OfEmpty_YieldsSingleNullCpu()
     {
         var readings = SensorReadingBuilder.WithCpuPlaceholder(SensorReadingBuilder.ToUnavailable(Array.Empty<SensorReading>()));

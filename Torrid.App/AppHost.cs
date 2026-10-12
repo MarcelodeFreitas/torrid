@@ -34,7 +34,7 @@ public sealed class AppHost : IDisposable
 
         if (options.Demo)
         {
-            var fake = new FakeSensorSource();
+            var fake = new FakeSensorSource(() => ConfigManager.Config.AddedSensors);
             if (options.DemoPaused)
             {
                 fake.Status = new HardwareStatus(HardwareAccessLevel.Paused, new AntiCheatMatch("Riot Vanguard", "vgc"));
@@ -42,17 +42,20 @@ public sealed class AppHost : IDisposable
 
             Sensors = fake;
             Hardware = fake;
+            Catalog = fake;
         }
         else
         {
             // The poll thread reads these delegates; config must only change through ConfigManager.Update,
-            // and lists are replaced wholesale rather than mutated in place.
+            // and lists/dictionaries are replaced wholesale rather than mutated in place.
             var service = new SensorService(
                 config.PollIntervalMs,
                 () => ConfigManager.Config.WhileAntiCheatActive,
-                () => ConfigManager.Config.ExtraProtectedProcesses);
+                () => ConfigManager.Config.ExtraProtectedProcesses,
+                addedSensors: () => ConfigManager.Config.AddedSensors);
             Sensors = service;
             Hardware = service;
+            Catalog = service;
         }
 
         _toasts = new WindowsToastNotifier();
@@ -91,6 +94,9 @@ public sealed class AppHost : IDisposable
     public ISensorSource Sensors { get; }
 
     public IHardwareStatusSource Hardware { get; }
+
+    /// <summary>Lists the sensors that can be added (the Sensors page's Add sensor panel). Scans run off the UI thread.</summary>
+    public ISensorCatalogSource Catalog { get; }
 
     public NotificationService Notifications { get; }
 

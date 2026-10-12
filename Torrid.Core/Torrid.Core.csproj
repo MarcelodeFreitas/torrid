@@ -10,4 +10,9 @@
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- SensorService's hardware seam (IHardwareComputer) is internal; the tests drive it with a fake. -->
+    <InternalsVisibleTo Include="Torrid.Tests" />
+  </ItemGroup>
+
 </Project>

@@ -1,30 +1,51 @@
 namespace Torrid.Core.Sensors;
 
 using System.Diagnostics;
-using LibreHardwareMonitor.Hardware;
+using Torrid.Core.Config;
 using Torrid.Core.Models;
 
-public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDisposable
+public sealed class SensorService : ISensorSource, IHardwareStatusSource, ISensorCatalogSource, IDisposable
 {
     private readonly System.Timers.Timer _timer;
-    private readonly UpdateVisitor _visitor = new();
     private readonly Func<AntiCheatBehavior> _behavior;
     private readonly Func<IReadOnlyList<string>> _extraProcesses;
     private readonly IProcessLister _processLister;
+    private readonly Func<IReadOnlyDictionary<string, AddedSensor>> _addedSensors;
+    private readonly Func<HardwareGroups, IHardwareComputer> _openComputer;
     private readonly object _gate = new();
-    private Computer? _computer;
-    private HardwareAccessLevel? _openLevel;
+    private IHardwareComputer? _computer;
+    private HardwareGroups _openGroups = HardwareGroups.None;
+    private IReadOnlyDictionary<string, AddedSensor>? _addedSource;
+    private AddedView _added = AddedView.Empty;
     private volatile bool _disposed;
 
+    /// <param name="addedSensors">
+    /// The sensors the user added (<see cref="AppConfig.AddedSensors"/>). Read on the poll thread: the UI thread must
+    /// replace the dictionary wholesale, never mutate it in place.
+    /// </param>
     public SensorService(
         int pollIntervalMs,
         Func<AntiCheatBehavior>? behavior = null,
         Func<IReadOnlyList<string>>? extraProcesses = null,
-        IProcessLister? processLister = null)
+        IProcessLister? processLister = null,
+        Func<IReadOnlyDictionary<string, AddedSensor>>? addedSensors = null)
+        : this(pollIntervalMs, behavior, extraProcesses, processLister, addedSensors, LhmHardwareComputer.Open)
+    {
+    }
+
+    internal SensorService(
+        int pollIntervalMs,
+        Func<AntiCheatBehavior>? behavior,
+        Func<IReadOnlyList<string>>? extraProcesses,
+        IProcessLister? processLister,
+        Func<IReadOnlyDictionary<string, AddedSensor>>? addedSensors,
+        Func<HardwareGroups, IHardwareComputer> openComputer)
     {
         _behavior = behavior ?? (() => AntiCheatBehavior.Pause);
         _extraProcesses = extraProcesses ?? (() => Array.Empty<string>());
         _processLister = processLister ?? new SystemProcessLister();
+        _addedSensors = addedSensors ?? (() => AddedView.Empty.Map);
+        _openComputer = openComputer;
 
         _timer = new System.Timers.Timer(pollIntervalMs) { AutoReset = false };
         _timer.Elapsed += (_, _) => PollAndReschedule();
@@ -49,6 +70,15 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
     public void Start() => _timer.Start();
 
     public void Stop() => _timer.Stop();
+
+    /// <summary>Polls once, synchronously (tests drive the service with this instead of the timer).</summary>
+    internal void PollNow() => Poll();
+
+    /// <summary>
+    /// Lists every temperature sensor the current anti-cheat level permits, on a thread-pool thread. Refused while
+    /// paused (no hardware is touched); at GPU-only only GPU and storage are scanned.
+    /// </summary>
+    public Task<SensorCatalogResult> ScanAsync(CancellationToken ct = default) => Task.Run(() => Scan(ct), ct);
 
     private void PollAndReschedule()
     {
@@ -82,8 +112,7 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
             try
             {
                 // Policy first: an already-running anti-cheat means the hardware (and its driver) is never opened.
-                decided = HardwareAccessPolicy.Evaluate(
-                    _behavior(), _processLister.GetRunningProcessNames(), _extraProcesses());
+                decided = EvaluatePolicy();
             }
             catch (Exception ex)
             {
@@ -92,9 +121,11 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
                 CloseComputer();
             }
 
+            var added = ReadAddedSensors();
+
             if (decided is null)
             {
-                readings = SensorReadingBuilder.WithCpuPlaceholder(SensorReadingBuilder.ToUnavailable(CurrentReadings));
+                readings = UnavailableReadings(added);
             }
             else
             {
@@ -103,10 +134,8 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
                     statusChanged = !Equals(decided, Status);
                     Status = decided;
 
-                    EnsureComputerFor(decided.Level);
-                    readings = decided.Level == HardwareAccessLevel.Paused
-                        ? SensorReadingBuilder.WithCpuPlaceholder(SensorReadingBuilder.ToUnavailable(CurrentReadings))
-                        : ReadHardware(decided.Level);
+                    EnsureComputerFor(HardwareGroupsPolicy.Effective(decided.Level, added.Kinds));
+                    readings = _computer is null ? UnavailableReadings(added) : ReadHardware(decided.Level, added);
                 }
                 catch
                 {
@@ -122,50 +151,134 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
         ReadingsUpdated?.Invoke(this, readings);
     }
 
-    private void EnsureComputerFor(HardwareAccessLevel level)
+    private SensorCatalogResult Scan(CancellationToken ct)
     {
-        if (_openLevel == level) return;
-
-        CloseComputer();
-        if (level == HardwareAccessLevel.Paused) return;
-
-        var computer = new Computer { IsCpuEnabled = level == HardwareAccessLevel.Full, IsGpuEnabled = true };
-        try
+        lock (_gate)
         {
-            computer.Open();
-        }
-        catch
-        {
-            try { computer.Close(); } catch { /* best effort: don't leak a half-opened Computer */ }
-            throw;
-        }
+            if (_disposed) return SensorCatalogResult.Failed("Torrid is shutting down.");
 
-        _computer = computer;
-        _openLevel = level;
+            HardwareStatus status;
+            try
+            {
+                status = EvaluatePolicy();
+            }
+            catch (Exception ex)
+            {
+                // Same fail-closed rule as Poll: unknown anti-cheat state means no hardware at all.
+                Debug.WriteLine($"SensorService: anti-cheat policy evaluation failed during scan, closing hardware: {ex}");
+                CloseComputer();
+                return SensorCatalogResult.Failed(ex.Message);
+            }
+
+            var groups = HardwareGroupsPolicy.ForLevel(status.Level);
+            if (status.Level == HardwareAccessLevel.Paused || groups == HardwareGroups.None)
+            {
+                return SensorCatalogResult.PausedFor(status.AntiCheat);
+            }
+
+            ct.ThrowIfCancellationRequested();
+
+            IHardwareComputer? temporary = null;
+            try
+            {
+                IHardwareComputer computer;
+                if (_computer is not null && _openGroups == groups)
+                {
+                    computer = _computer;
+                }
+                else
+                {
+                    // LibreHardwareMonitor's Computer.Close() releases process-wide state (CPUID op-codes, the ISA/SMBus
+                    // mutexes), so two Computers must never be open at once: release the live one here; the next poll
+                    // reopens exactly the groups it needs.
+                    CloseComputer();
+                    temporary = _openComputer(groups);
+                    computer = temporary;
+                }
+
+                return new SensorCatalogResult(SensorCatalogBuilder.Build(computer.Read()), null);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"SensorService: hardware scan failed: {ex}");
+                return SensorCatalogResult.Failed(ex.Message);
+            }
+            finally
+            {
+                if (temporary is not null)
+                {
+                    try { temporary.Close(); }
+                    catch { /* releasing hardware must never take the app down */ }
+                }
+            }
+        }
     }
 
-    private IReadOnlyList<SensorReading> ReadHardware(HardwareAccessLevel level)
+    private HardwareStatus EvaluatePolicy() =>
+        HardwareAccessPolicy.Evaluate(_behavior(), _processLister.GetRunningProcessNames(), _extraProcesses());
+
+    /// <summary>The added sensors, re-derived only when the config replaced its dictionary (reference change).</summary>
+    private AddedView ReadAddedSensors()
     {
-        _computer!.Accept(_visitor);
-        var readings = SensorReadingBuilder.Build(_computer.Hardware.Select(ToSnapshot).ToList());
+        try
+        {
+            var source = _addedSensors();
+            if (!ReferenceEquals(source, _addedSource))
+            {
+                _addedSource = source;
+                _added = source is null ? AddedView.Empty : AddedView.From(source);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"SensorService: reading the added sensors failed, ignoring them: {ex}");
+            _addedSource = null;
+            _added = AddedView.Empty;
+        }
+
+        return _added;
+    }
+
+    private void EnsureComputerFor(HardwareGroups groups)
+    {
+        if (_computer is not null && _openGroups == groups) return;
+
+        CloseComputer();
+        if (groups == HardwareGroups.None) return;
+
+        _computer = _openComputer(groups);
+        _openGroups = groups;
+    }
+
+    private IReadOnlyList<SensorReading> ReadHardware(HardwareAccessLevel level, AddedView added)
+    {
+        var readings = SensorReadingBuilder.Build(_computer!.Read(), added.Ids.Count == 0 ? null : added.Ids, added.Info);
         return level == HardwareAccessLevel.GpuOnly ? SensorReadingBuilder.WithCpuPlaceholder(readings) : readings;
+    }
+
+    /// <summary>
+    /// No hardware: the last built-in readings nulled (plus the CPU placeholder) and a null reading per added sensor,
+    /// so every row keeps its name and shows "--".
+    /// </summary>
+    private IReadOnlyList<SensorReading> UnavailableReadings(AddedView added)
+    {
+        var builtIns = CurrentReadings.Where(r => !SensorIdentity.IsGenericId(r.Id)).ToList();
+        var readings = SensorReadingBuilder.WithCpuPlaceholder(SensorReadingBuilder.ToUnavailable(builtIns));
+        if (added.Ids.Count == 0) return readings;
+
+        var list = readings.ToList();
+        list.AddRange(SensorReadingBuilder.Build(Array.Empty<HardwareSnapshot>(), added.Ids, added.Info));
+        return list;
     }
 
     private void CloseComputer()
     {
         var computer = _computer;
         _computer = null;
-        _openLevel = null;
+        _openGroups = HardwareGroups.None;
         try { computer?.Close(); }
         catch { /* releasing hardware must never take the app down */ }
     }
-
-    private static HardwareSnapshot ToSnapshot(IHardware hardware) => new(
-        hardware.HardwareType,
-        hardware.Name,
-        hardware.Sensors.Select(s => new SensorSnapshot(s.Name, s.SensorType, s.Value, s.Identifier.ToString())).ToList(),
-        hardware.SubHardware.Select(ToSnapshot).ToList(),
-        hardware.Identifier.ToString());
 
     public void Dispose()
     {
@@ -179,18 +292,35 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, IDispo
         }
     }
 
-    private sealed class UpdateVisitor : IVisitor
+    /// <summary>The valid added ids, their kinds and a lookup, derived once per config dictionary.</summary>
+    private sealed class AddedView
     {
-        public void VisitComputer(IComputer computer) => computer.Traverse(this);
+        public static AddedView Empty { get; } = new(new Dictionary<string, AddedSensor>(), Array.Empty<string>());
 
-        public void VisitHardware(IHardware hardware)
+        private AddedView(IReadOnlyDictionary<string, AddedSensor> map, IReadOnlyList<string> ids)
         {
-            hardware.Update();
-            foreach (var sub in hardware.SubHardware) sub.Accept(this);
+            Map = map;
+            Ids = ids;
+            Kinds = ids.Select(id => map[id].Kind).ToArray();
+            Info = id => map.TryGetValue(id, out var info) ? info : null;
         }
 
-        public void VisitSensor(ISensor sensor) { }
+        public IReadOnlyDictionary<string, AddedSensor> Map { get; }
 
-        public void VisitParameter(IParameter parameter) { }
+        public IReadOnlyList<string> Ids { get; }
+
+        public IReadOnlyList<SensorKind> Kinds { get; }
+
+        public Func<string, AddedSensor?> Info { get; }
+
+        /// <summary>Hand-edited garbage (invalid ids, null entries) is ignored rather than producing rows.</summary>
+        public static AddedView From(IReadOnlyDictionary<string, AddedSensor> source)
+        {
+            var ids = source
+                .Where(kv => kv.Value is not null && SensorIdentity.IsGenericId(kv.Key))
+                .Select(kv => kv.Key)
+                .ToArray();
+            return new AddedView(source, ids);
+        }
     }
 }
