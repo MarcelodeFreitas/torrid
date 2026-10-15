@@ -234,7 +234,6 @@ public class ThresholdsViewModelTests
 
         var item = Item(vm, "gpu1-hotspot");
         Assert.Equal("EVGA Hot", item.Label);
-        Assert.False(item.IsDetected);
         Assert.Equal(NotDetected, item.Caption);
         Assert.Equal("--", item.ValueText);
         Assert.Equal(ColorZone.Blue, item.Zone);
@@ -247,7 +246,7 @@ public class ThresholdsViewModelTests
         var (vm, _, _) = Make(readings: new[] { Cpu(null) });
 
         Assert.Equal("--", Item(vm, "cpu").ValueText);
-        Assert.True(Item(vm, "cpu").IsDetected);
+        Assert.NotEqual(NotDetected, Item(vm, "cpu").Caption);
     }
 
     [Fact]
@@ -277,7 +276,6 @@ public class ThresholdsViewModelTests
         Assert.Equal("VRM", vrm.Label);
         Assert.Equal(SensorKind.Motherboard, vrm.Identity.Kind);
         Assert.Equal("Motherboard", vrm.DeviceTitle);
-        Assert.False(vrm.IsDetected);
         Assert.Equal(NotDetected, vrm.Caption);
     }
 
@@ -611,12 +609,10 @@ public class ThresholdsViewModelTests
         Assert.False(gpu3.IsExpanded);
         Assert.Equal("gpu15-hotspot", vm.FocusedSensorId);
         Assert.Contains(nameof(ThresholdsViewModel.FocusedSensorId), raised);
-        Assert.True(Item(vm, "gpu15-hotspot").IsFocused);
-        Assert.False(Item(vm, "gpu15-core").IsFocused);
     }
 
     [Fact]
-    public void Focus_MovesTheFocusFlag_AndRaisesAgainForTheSameSensor()
+    public void Focus_RaisesAgainForTheSameSensor_AndKeepsTheLatestTarget()
     {
         var (vm, _, _) = Make(readings: CpuAndGpu0());
         vm.Focus("cpu");
@@ -626,8 +622,7 @@ public class ThresholdsViewModelTests
         vm.Focus("gpu0-core");
         vm.Focus("gpu0-core");
 
-        Assert.False(Item(vm, "cpu").IsFocused);
-        Assert.True(Item(vm, "gpu0-core").IsFocused);
+        Assert.Equal("gpu0-core", vm.FocusedSensorId);
         Assert.Equal(2, raised);
     }
 
@@ -724,6 +719,23 @@ public class ThresholdsViewModelTests
         Assert.Null(core.Error);
         Assert.Equal((40d, 75d, 85d), Limits(core));
         Assert.False(ThresholdResolver.HasCustom(manager.Config, "gpu0-core"));
+    }
+
+    [Fact]
+    public void Reset_OnADefaultSensorWithAPendingInvalidEdit_WritesNothingToTheConfig()
+    {
+        var (vm, _, manager) = Make(readings: CpuAndGpu0());
+        var core = Item(vm, "gpu0-core");
+        core.YellowMax = 10;
+        Assert.NotNull(core.Error);
+        var changes = 0;
+        manager.Changed += (_, _) => changes++;
+
+        core.ResetCommand.Execute(null);
+
+        Assert.Equal(0, changes);
+        Assert.Null(core.Error);
+        Assert.Equal((40d, 75d, 85d), Limits(core));
     }
 
     [Fact]

@@ -90,7 +90,6 @@ public sealed class ThresholdsViewModel : ObservableObject
 
         if (!target.IsVisible) SearchText = "";
 
-        foreach (var item in _itemsById.Values) item.IsFocused = ReferenceEquals(item, target);
         if (Groups.FirstOrDefault(g => g.Items.Contains(target)) is { } group) group.IsExpanded = true;
 
         FocusedSensorId = sensorId;

@@ -8,10 +8,10 @@
         <conv:InverseBoolConverter x:Key="InverseBool"/>
 
         <!-- List columns: the header and every row use these, so the boxes line up. A row sits 22 DIPs in from the edge
-             (section frame 1 + inset 8 + row border 1 + padding 12), so the header is inset the same, plus a spacer column
-             for the list's scroll bar on the right. -->
+             (section frame 1 + inset 8 + row border 1 + padding 12), so the header is inset the same. Both live in the list's
+             scrolled content, which already excludes the scroll bar. -->
         <GridLength x:Key="ListValueWidth">62</GridLength>
-        <GridLength x:Key="ListLimitWidth">66</GridLength>
+        <GridLength x:Key="ListLimitWidth">76</GridLength>
         <GridLength x:Key="ListStatusWidth">70</GridLength>
         <GridLength x:Key="ListResetWidth">32</GridLength>
 
@@ -488,7 +488,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -534,30 +533,8 @@
             </Border>
         </Grid>
 
-        <!-- Column titles for the list. They stay put while the rows scroll underneath. The last column is the list's scroll
-             bar width, so the titles line up with the rows. -->
-        <Grid Grid.Row="2" Margin="22,18,22,6" Style="{StaticResource ListOnlyStyle}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="{StaticResource ListValueWidth}"/>
-                <ColumnDefinition Width="{StaticResource ListLimitWidth}"/>
-                <ColumnDefinition Width="{StaticResource ListLimitWidth}"/>
-                <ColumnDefinition Width="{StaticResource ListLimitWidth}"/>
-                <ColumnDefinition Width="{StaticResource ListStatusWidth}"/>
-                <ColumnDefinition Width="{StaticResource ListResetWidth}"/>
-                <ColumnDefinition Width="{x:Static SystemParameters.VerticalScrollBarWidth}"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="Sensor" Style="{StaticResource ListHeaderStyle}" TextAlignment="Left"/>
-            <TextBlock Grid.Column="1" Text="Value" Style="{StaticResource ListHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="Blue below" Style="{StaticResource ListHeaderStyle}"/>
-            <TextBlock Grid.Column="3" Text="Green below" Style="{StaticResource ListHeaderStyle}"/>
-            <TextBlock Grid.Column="4" Text="Yellow up to" Style="{StaticResource ListHeaderStyle}"/>
-            <TextBlock Grid.Column="5" Text="Status" Style="{StaticResource ListHeaderStyle}"/>
-            <TextBlock Grid.Column="6" Text="Reset" Style="{StaticResource ListHeaderStyle}"/>
-        </Grid>
-
         <!-- Cards view. -->
-        <ScrollViewer Grid.Row="3" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto"
+        <ScrollViewer Grid.Row="2" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled" Focusable="False" Style="{StaticResource CardsOnlyStyle}">
             <StackPanel Margin="0,0,4,8">
                 <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource CardGroupTemplate}" Focusable="False"/>
@@ -580,10 +557,29 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- List view. The scroll bar is always shown, so the column titles above keep their alignment with the rows. -->
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Visible"
+        <!-- List view. The column titles are the first thing in the scrolled content, so they scroll away with the rows. Both
+             sit inside the same content width, so the same 22 DIP inset lines them up; no scroll bar spacer is needed. -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Visible"
                       HorizontalScrollBarVisibility="Disabled" Focusable="False" Style="{StaticResource ListOnlyStyle}">
             <StackPanel Margin="0,0,0,8">
+                <Grid Margin="22,18,22,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="{StaticResource ListValueWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ListLimitWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ListLimitWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ListLimitWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ListStatusWidth}"/>
+                        <ColumnDefinition Width="{StaticResource ListResetWidth}"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Sensor" Style="{StaticResource ListHeaderStyle}" TextAlignment="Left"/>
+                    <TextBlock Grid.Column="1" Text="Value" Style="{StaticResource ListHeaderStyle}"/>
+                    <TextBlock Grid.Column="2" Text="Blue below" Style="{StaticResource ListHeaderStyle}"/>
+                    <TextBlock Grid.Column="3" Text="Green below" Style="{StaticResource ListHeaderStyle}"/>
+                    <TextBlock Grid.Column="4" Text="Yellow up to" Style="{StaticResource ListHeaderStyle}"/>
+                    <TextBlock Grid.Column="5" Text="Status" Style="{StaticResource ListHeaderStyle}"/>
+                    <TextBlock Grid.Column="6" Text="Reset" Style="{StaticResource ListHeaderStyle}"/>
+                </Grid>
                 <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource ListGroupTemplate}" Focusable="False"/>
                 <Expander Style="{StaticResource DefaultsSectionStyle}" Header="Defaults by sensor type"
                           HeaderTemplate="{StaticResource SectionTitleTemplate}">

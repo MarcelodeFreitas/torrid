@@ -21,14 +21,12 @@ public sealed class SensorThresholdViewModel : ObservableObject
     private string _valueText = "--";
     private bool _hasValue;
     private ColorZone _zone = ColorZone.Blue;
-    private bool _isDetected;
     private double _blueMax;
     private double _greenMax;
     private double _yellowMax;
     private string? _error;
     private bool _isCustom;
     private bool _hasPendingEdit;
-    private bool _isFocused;
     private bool _isVisible = true;
     private string _deviceTitle = "";
 
@@ -61,8 +59,6 @@ public sealed class SensorThresholdViewModel : ObservableObject
     public bool HasValue { get => _hasValue; private set => Set(ref _hasValue, value); }
 
     public ColorZone Zone { get => _zone; private set => Set(ref _zone, value); }
-
-    public bool IsDetected { get => _isDetected; private set => Set(ref _isDetected, value); }
 
     /// <summary>The device this sensor is listed under on the Sensors page ("CPU", "GPU 0", ...), whatever its placement here.</summary>
     public string DeviceTitle { get => _deviceTitle; internal set => Set(ref _deviceTitle, value); }
@@ -118,9 +114,6 @@ public sealed class SensorThresholdViewModel : ObservableObject
 
     private bool CanReset => IsCustom || HasError;
 
-    /// <summary>Set by the page when this sensor is the target of <see cref="ThresholdsViewModel.Focus"/>.</summary>
-    public bool IsFocused { get => _isFocused; internal set => Set(ref _isFocused, value); }
-
     /// <summary>False when the search text hides this sensor (the row is kept, only hidden).</summary>
     public bool IsVisible { get => _isVisible; internal set => Set(ref _isVisible, value); }
 
@@ -128,7 +121,6 @@ public sealed class SensorThresholdViewModel : ObservableObject
     public void UpdateReading(SensorReading? reading)
     {
         _reading = SensorRows.Detected(Identity, reading);
-        IsDetected = _reading is not null;
         HardwareName = _reading?.HardwareName ?? SensorRows.StoredHardwareName(_config.Config, Id);
 
         if (_reading is null)
@@ -187,10 +179,10 @@ public sealed class SensorThresholdViewModel : ObservableObject
 
     private void Reset()
     {
-        // A default sensor with nothing pending has nothing to undo: writing the config then would be a no-op save.
         if (!CanReset) return;
 
-        _config.Update(c => ThresholdResolver.ClearCustom(c, Id));
+        // Only a custom band is in the config; a default sensor's invalid pending edit is just dropped, nothing is written.
+        if (IsCustom) _config.Update(c => ThresholdResolver.ClearCustom(c, Id));
         _hasPendingEdit = false;
         RefreshFromConfig();
     }
