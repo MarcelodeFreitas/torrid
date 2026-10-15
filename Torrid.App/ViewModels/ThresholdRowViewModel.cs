@@ -128,6 +128,7 @@ public sealed class ThresholdRowViewModel : ObservableObject
         Raise(nameof(RedWidth));
     }
 
-    private static GridLength Star(double value) =>
+    /// <summary>A preview-bar column proportional to <paramref name="value"/> (shared with the per-sensor cards).</summary>
+    internal static GridLength Star(double value) =>
         new(double.IsFinite(value) ? Math.Max(0, value) : 0, GridUnitType.Star);
 }

@@ -75,7 +75,7 @@ public sealed class AppHost : IDisposable
             SensorsPage.AddSensor.ScanCommand.Execute(null);
         }
 
-        ThresholdsPage = new ThresholdsViewModel(ConfigManager);
+        ThresholdsPage = new ThresholdsViewModel(Sensors, ConfigManager);
         SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware, SendTestNotification, PawnIo, UrlLauncher.Open);
         Shell = new ShellViewModel(new[]
         {

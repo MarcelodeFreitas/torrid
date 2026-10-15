@@ -19,7 +19,11 @@ public static class ThresholdResolver
     public static bool IsValid([NotNullWhen(true)] ThresholdBand? band) =>
         band is not null && 0 <= band.BlueMax && band.BlueMax < band.GreenMax && band.GreenMax < band.YellowMax && band.YellowMax <= MaxLimit;
 
-    /// <summary>The effective band: own valid band, else the kind default from the config, else the built-in default. Never null.</summary>
+    /// <summary>
+    /// The effective band: own valid band, else the kind default from the config, else the built-in default. Never null.
+    /// The returned band is the stored instance: treat it as read-only (replace a band through <see cref="SetCustom"/> or the
+    /// kind defaults, never mutate it in place).
+    /// </summary>
     public static ThresholdBand For(AppConfig config, string sensorId, SensorKind kind)
     {
         var own = OwnBand(config, sensorId);

@@ -482,6 +482,21 @@ public class SensorsViewModelTests
     }
 
     [Fact]
+    public void ValueZone_TwoSensorsOfTheSameKind_KeepIndependentBands()
+    {
+        var config = new AppConfig();
+        ThresholdResolver.SetCustom(config, "gpu0-core", new ThresholdBand { BlueMax = 10, GreenMax = 20, YellowMax = 30 });
+        var readings = new[] { Gpu(0, SensorKind.GpuCore, 60), Gpu(1, SensorKind.GpuCore, 60) };
+
+        var (vm, _, _) = Make(config, readings);
+
+        Assert.Equal(SensorKind.GpuCore, Item(vm, "gpu0-core").Identity.Kind);
+        Assert.Equal(SensorKind.GpuCore, Item(vm, "gpu1-core").Identity.Kind);
+        Assert.Equal(ColorZone.Red, Item(vm, "gpu0-core").Zone);    // its own 10/20/30 band
+        Assert.Equal(ColorZone.Green, Item(vm, "gpu1-core").Zone);  // the GPU core default 40/75/85
+    }
+
+    [Fact]
     public void ValueZone_UpdatesWhenASensorBandIsSetOrCleared()
     {
         var (vm, source, manager) = Make(readings: new[] { Cpu(60) });

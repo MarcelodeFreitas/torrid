@@ -132,7 +132,7 @@ public sealed class SensorListItemViewModel : ObservableObject
     public void UpdateReading(SensorReading? reading, ThresholdBand? band)
     {
         // An added sensor the hardware tree doesn't contain comes back as a placeholder: no value and no source name.
-        if (IsAdded && reading is { ValueCelsius: null, SourceSensorName: null }) reading = null;
+        if (IsAdded) reading = SensorRows.Detected(Identity, reading);
 
         IsDetected = reading is not null;
 
