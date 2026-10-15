@@ -229,6 +229,32 @@ public class SensorsViewModelTests
     }
 
     [Fact]
+    public void ResetToDefaults_KeepsCustomThresholdBands_AndClearsEverythingElse()
+    {
+        var band = new ThresholdBand { BlueMax = 40, GreenMax = 60, YellowMax = 80 };
+        var config = new AppConfig();
+        config.Sensors["cpu"] = new SensorPreference { Label = "5950X", ShowInTray = false, Notify = false, Thresholds = band };
+        config.Sensors["gpu0-core"] = new SensorPreference { Label = "Core", ShowInWindow = true };
+        var (vm, _, manager) = Make(config, CpuAndGpu0());
+        var before = manager.Config.Sensors;
+
+        vm.ResetToDefaultsCommand.Execute(null);
+
+        Assert.NotSame(before, manager.Config.Sensors);
+        Assert.Equal(new[] { "cpu" }, manager.Config.Sensors.Keys);
+        var cpu = manager.Config.Sensors["cpu"];
+        Assert.Null(cpu.Label);
+        Assert.Null(cpu.ShowInTray);
+        Assert.Null(cpu.Notify);
+        Assert.Equal(40, cpu.Thresholds!.BlueMax);
+        Assert.Equal(60, cpu.Thresholds!.GreenMax);
+        Assert.Equal(80, cpu.Thresholds!.YellowMax);
+        Assert.Equal("CPU", Item(vm, "cpu").Label);
+        Assert.True(Item(vm, "cpu").ShowInTray);
+        Assert.Equal("GPU0 Core", Item(vm, "gpu0-core").Label);
+    }
+
+    [Fact]
     public void NewReadingId_AddsRow_AndKeepsExistingInstances()
     {
         var (vm, source, _) = Make(readings: CpuAndGpu0());

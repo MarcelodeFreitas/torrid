@@ -57,7 +57,7 @@ Honest limits:
 Every sensor has its own limits: where its colour changes from blue to green, green to yellow and yellow to red. A sensor you have not changed follows the **defaults for its type** (CPU temperature, GPU core, Motherboard / VRM and so on).
 
 - **Default or Custom.** A sensor shows **Default** while it follows its type's defaults, and **Custom** once you set its own limits. **Reset** brings it back to the defaults.
-- **Limits.** Set blue below, green below and yellow up to, in °C. They must rise (blue < green < yellow) and stay between 0 and 150. A valid change applies at once; an invalid one is marked with an error and is not saved.
+- **Limits.** Set blue below, green below and yellow up to, in °C. They must rise (blue < green < yellow) and stay between 0 and 150. A valid change applies when you leave the box (press Tab or click away); an invalid one is marked with an error and is not saved.
 - **Alerts.** A sensor's alert fires when its value goes above its **Yellow up to** limit, which is when it turns red. Alerts are switched per sensor on the Sensors page.
 - **Defaults by sensor type.** At the bottom of the page. New sensors start from these limits, and changing one only affects sensors you have not customised.
 - **Cards or List.** The Cards / List toggle switches between a card per sensor (with a preview bar) and one compact row per sensor. The choice is remembered. The search box filters by sensor name, hardware name or device.

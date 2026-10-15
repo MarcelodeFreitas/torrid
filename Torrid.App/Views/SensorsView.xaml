@@ -244,7 +244,7 @@
                 </Button>
                 <Button Style="{StaticResource SecondaryButtonStyle}" Margin="8,0,0,0"
                         Command="{Binding ResetToDefaultsCommand}"
-                        ToolTip="Clear every name and switch back to the built-in defaults">
+                        ToolTip="Clear every name and switch back to the built-in defaults. Custom limits are kept; reset those on the Thresholds page.">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE72C;" FontSize="12" Margin="0,1,8,0"
                                    VerticalAlignment="Center"/>

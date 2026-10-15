@@ -48,10 +48,17 @@ public sealed class SensorsViewModel : ObservableObject
     /// <summary>
     /// Clears every name and switch, but keeps added sensors in the window (adding one switches it on), so a reset
     /// never silently hides them from Home. Their names and tray / alert switches are cleared like the rest.
+    /// A sensor's own limits (<see cref="SensorPreference.Thresholds"/>) are kept; they are reset on the Thresholds page.
     /// </summary>
     private static void ResetToDefaults(AppConfig config)
     {
-        config.Sensors = new Dictionary<string, SensorPreference>();
+        var kept = new Dictionary<string, SensorPreference>();
+        foreach (var (id, preference) in config.Sensors)
+        {
+            if (preference?.Thresholds is not null) kept[id] = new SensorPreference { Thresholds = preference.Thresholds };
+        }
+
+        config.Sensors = kept;
         foreach (var (id, info) in config.AddedSensors ?? new Dictionary<string, AddedSensor>())
         {
             if (info is not null && SensorIdentity.IsGenericId(id)) SensorPreferences.Update(config, id, p => p.ShowInWindow = true);
