@@ -17,12 +17,16 @@ public sealed class SensorsViewModel : ObservableObject
     private readonly ConfigManager _config;
     private readonly Dictionary<string, SensorGroupViewModel> _groupsByKey = new();
     private readonly Dictionary<string, SensorListItemViewModel> _itemsById = new();
+    private readonly Action<string>? _showLimits;
     private List<string> _rowKeys = new();
 
-    public SensorsViewModel(ISensorSource sensors, ConfigManager config, ISensorCatalogSource? catalog = null)
+    /// <param name="showLimits">Called with a sensor's id when its row's Limits link is used.</param>
+    public SensorsViewModel(
+        ISensorSource sensors, ConfigManager config, ISensorCatalogSource? catalog = null, Action<string>? showLimits = null)
     {
         _sensors = sensors;
         _config = config;
+        _showLimits = showLimits;
 
         AddSensor = new AddSensorViewModel(catalog, config, () => _sensors.CurrentReadings);
         ResetToDefaultsCommand = new RelayCommand(_ => _config.Update(ResetToDefaults));
@@ -91,7 +95,7 @@ public sealed class SensorsViewModel : ObservableObject
                 if (!_itemsById.TryGetValue(identity.Id, out var item) || item.Identity != identity)
                 {
                     // A changed identity (e.g. a re-added sensor with another kind) needs a fresh row.
-                    item = new SensorListItemViewModel(identity, _config, AddSensor.Remove);
+                    item = new SensorListItemViewModel(identity, _config, AddSensor.Remove, _showLimits);
                     _itemsById[identity.Id] = item;
                 }
 

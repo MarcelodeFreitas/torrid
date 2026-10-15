@@ -510,4 +510,18 @@ public class SensorsViewModelTests
         source.Publish(new[] { Cpu(60) });
         Assert.Equal(ColorZone.Green, Item(vm, "cpu").Zone);
     }
+
+    [Fact]
+    public void LimitsLink_CallsBackWithTheSensorIdExactlyOnce()
+    {
+        var calls = new List<string>();
+        var source = new FakeSensorSourceForTests();
+        source.Publish(CpuAndGpu0());
+        var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero);
+        var vm = new SensorsViewModel(source, manager, showLimits: calls.Add);
+
+        Item(vm, "gpu0-core").LimitsCommand.Execute(null);
+
+        Assert.Equal(new[] { "gpu0-core" }, calls);
+    }
 }

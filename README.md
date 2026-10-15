@@ -21,12 +21,12 @@ Most GPU monitoring tools show core temperature only. For thermal validation and
 
 ## Features
 
-- **One window with a sidebar.** Pages: **Home** (live dashboard of the sensors you chose), **Sensors** (every sensor found, with switches for Window / Tray / Alerts and renaming to tell identical cards apart), **Thresholds** (edit where blue, green, yellow and red begin per sensor type) and **Settings** (poll interval, repeat alerts, start minimized, anti-cheat behaviour, PawnIO driver status, test notification). Edits apply instantly and save automatically.
+- **One window with a sidebar.** Pages: **Home** (live dashboard of the sensors you chose), **Sensors** (every sensor found, with switches for Window / Tray / Alerts and renaming to tell identical cards apart), **Thresholds** (set where blue, green, yellow and red begin for each sensor) and **Settings** (poll interval, repeat alerts, start minimized, anti-cheat behaviour, PawnIO driver status, test notification). Edits apply instantly and save automatically.
 - **Per-sensor tray icons.** Each chosen sensor gets its own tray icon with a colour-coded number, a tooltip, and a blink while that sensor is in the red zone. Left-click opens the window on Home; the right-click menu has only Settings (opens the Sensors page) and Exit. Closing the window only hides it; Exit from the tray quits.
 - **Alerts.** A Windows toast fires once when a sensor enters red, with optional repeat every N minutes while it stays red. A "Send test notification" button in Settings checks that alerts reach you.
 - **Anti-cheat safety.** While a known anti-cheat is running, Torrid pauses (default), switches to GPU only, or carries on, as you choose. See [docs/anti-cheat.md](docs/anti-cheat.md).
 - **Sensible defaults.** Only the CPU temperature and GPU hot spot are shown in the window and tray at first (alerts are on for every sensor); the other sensors Torrid knows about (per device: CPU package, GPU core, GPU hot spot, GPU VRAM / memory junction) can be switched on from the Sensors page.
-- **Add any temperature sensor.** **Add sensor** on the Sensors page scans for every temperature sensor LibreHardwareMonitor can see (motherboard and VRM, chipset, storage, memory, extra CPU sensors such as CCDs or SoC, extra GPU sensors) and adds the ones you pick. Added sensors appear on Home, in the tray and in alerts like the built-in ones, each kind with its own thresholds. See [Adding more sensors](#adding-more-sensors).
+- **Add any temperature sensor.** **Add sensor** on the Sensors page scans for every temperature sensor LibreHardwareMonitor can see (motherboard and VRM, chipset, storage, memory, extra CPU sensors such as CCDs or SoC, extra GPU sensors) and adds the ones you pick. Added sensors appear on Home, in the tray and in alerts like the built-in ones, each with its own thresholds. See [Adding more sensors](#adding-more-sensors).
 
 Settings are stored in `%AppData%\Torrid\config.json`.
 
@@ -39,7 +39,7 @@ The built-in sensors are the CPU temperature and, per GPU, core / hot spot / mem
 3. Press **Add** next to the ones you want. They appear in the list straight away, switched on for the window (tray off, alerts on); change that with the usual switches, and rename them like any other sensor.
 4. To remove one, press the **×** at the end of its row. Built-in sensors cannot be removed, only switched off.
 
-Added sensors go into their own groups on Home and on the Sensors page (**Motherboard**, **Memory**, **Storage**, **Other**; extra CPU sensors join the CPU group, and extra GPU sensors join their GPU when Torrid can tell which card they belong to). The **Thresholds** page has a band for each kind: Other CPU sensors, Other GPU sensors, Motherboard / VRM, Storage, Memory and Other sensors.
+Added sensors go into their own groups on Home and on the Sensors page (**Motherboard**, **Memory**, **Storage**, **Other**; extra CPU sensors join the CPU group, and extra GPU sensors join their GPU when Torrid can tell which card they belong to). Every sensor, added or built in, has its own limits on the **Thresholds** page (see [Thresholds](#thresholds)).
 
 Honest limits:
 
@@ -51,6 +51,18 @@ Honest limits:
 - **Scanning is manual.** Torrid never scans by itself; a scan briefly opens every hardware group the current anti-cheat setting allows (including PawnIO-backed ones). Scanning is **unavailable while an anti-cheat is running** with the default Pause setting, and covers only GPU and storage in GPU-only mode.
 - **Added motherboard or memory sensors make Torrid use PawnIO for those groups too.** Torrid only opens the hardware groups it needs: with nothing added that is CPU and GPU, exactly as before. Adding a motherboard or memory sensor adds that group (both use PawnIO), and only at the **Keep monitoring** / no-anti-cheat level; **GPU only** never opens them. Details in [docs/anti-cheat.md](docs/anti-cheat.md).
 - An added sensor that cannot be read right now (hardware removed, monitoring paused, group not allowed) keeps its row, shows `--` and "Not detected right now", and never raises an alert.
+
+## Thresholds
+
+Every sensor has its own limits: where its colour changes from blue to green, green to yellow and yellow to red. A sensor you have not changed follows the **defaults for its type** (CPU temperature, GPU core, Motherboard / VRM and so on).
+
+- **Default or Custom.** A sensor shows **Default** while it follows its type's defaults, and **Custom** once you set its own limits. **Reset** brings it back to the defaults.
+- **Limits.** Set blue below, green below and yellow up to, in °C. They must rise (blue < green < yellow) and stay between 0 and 150. A valid change applies at once; an invalid one is marked with an error and is not saved.
+- **Alerts.** A sensor's alert fires when its value goes above its **Yellow up to** limit, which is when it turns red. Alerts are switched per sensor on the Sensors page.
+- **Defaults by sensor type.** At the bottom of the page. New sensors start from these limits, and changing one only affects sensors you have not customised.
+- **Cards or List.** The Cards / List toggle switches between a card per sensor (with a preview bar) and one compact row per sensor. The choice is remembered. The search box filters by sensor name, hardware name or device.
+- **Not shown.** Sensors with Window, Tray and Alerts all off are listed in a collapsed **Not shown** section at the end.
+- **From the Sensors page.** Each sensor row has a **Limits** link that opens the Thresholds page on that sensor.
 
 ## Running it
 

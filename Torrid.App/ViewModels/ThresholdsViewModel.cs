@@ -23,6 +23,7 @@ public sealed class ThresholdsViewModel : ObservableObject
     private List<string> _layoutKeys = new();
     private string _searchText = "";
     private string? _focusedSensorId;
+    private string? _pendingFocusId;
 
     public ThresholdsViewModel(ISensorSource sensors, ConfigManager config)
     {
@@ -57,7 +58,10 @@ public sealed class ThresholdsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Case-insensitive match on sensor name, caption and device; blank shows everything. Never recreates rows.</summary>
+    /// <summary>
+    /// Case-insensitive match on the sensor's name, its default name, caption, hardware name and device; blank shows
+    /// everything. Never recreates rows.
+    /// </summary>
     public string SearchText
     {
         get => _searchText;
@@ -90,7 +94,19 @@ public sealed class ThresholdsViewModel : ObservableObject
         if (Groups.FirstOrDefault(g => g.Items.Contains(target)) is { } group) group.IsExpanded = true;
 
         FocusedSensorId = sensorId;
+        _pendingFocusId = sensorId;
         Raise(nameof(FocusedSensorId));
+    }
+
+    /// <summary>
+    /// The sensor a <see cref="Focus"/> request is waiting for the page to show, returned once. A page created after the
+    /// request (navigated to from the Sensors page) takes it on load; a page already showing it takes it on the change.
+    /// </summary>
+    public string? TakeFocusRequest()
+    {
+        var id = _pendingFocusId;
+        _pendingFocusId = null;
+        return id;
     }
 
     public static string Title(SensorKind kind) => kind switch
@@ -227,7 +243,9 @@ public sealed class ThresholdsViewModel : ObservableObject
     private static bool Matches(SensorThresholdViewModel item, string query) =>
         query.Length == 0
         || item.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || item.Identity.DefaultLabel.Contains(query, StringComparison.OrdinalIgnoreCase)
         || item.Caption.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || (item.HardwareName?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false)
         || item.DeviceTitle.Contains(query, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A sensor is shown when any of Window, Tray or Alerts is on; otherwise it sits in "Not shown".</summary>

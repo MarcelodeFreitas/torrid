@@ -495,16 +495,21 @@ public class ThresholdsViewModelTests
         }).ToList();
 
     [Fact]
-    public void SixtySensors_PerTickUpdates_CreateNoNewRowInstances()
+    public void SixtySensors_PerTickUpdates_CreateNoNewRowInstances_AndRaiseNoCollectionChanges()
     {
         var (vm, source, _) = Make(readings: SixtySensors(50));
         var groupsBefore = vm.Groups.ToList();
         var itemsBefore = vm.Groups.SelectMany(g => g.Items).ToList();
         Assert.Equal(60, itemsBefore.Count);
 
+        var collectionChanges = 0;
+        vm.Groups.CollectionChanged += (_, _) => collectionChanges++;
+        foreach (var group in vm.Groups) group.Items.CollectionChanged += (_, _) => collectionChanges++;
+
         source.Publish(SixtySensors(91));
         source.Publish(SixtySensors(20));
 
+        Assert.Equal(0, collectionChanges);
         Assert.Equal(groupsBefore, vm.Groups.ToList());
         var itemsAfter = vm.Groups.SelectMany(g => g.Items).ToList();
         Assert.Equal(itemsBefore.Count, itemsAfter.Count);
@@ -662,6 +667,119 @@ public class ThresholdsViewModelTests
 
         Assert.Null(vm.FocusedSensorId);
         Assert.Equal(0, raised);
+    }
+
+    [Fact]
+    public void TakeFocusRequest_ReturnsTheRequestOnce_SoAPageOpenedLaterDoesNotRefocus()
+    {
+        var (vm, _, _) = Make(readings: CpuAndGpu0());
+        vm.Focus("gpu0-core");
+
+        Assert.Equal("gpu0-core", vm.TakeFocusRequest());
+        Assert.Null(vm.TakeFocusRequest());
+    }
+
+    // ---- Review carry-overs: Reset availability, instance placement, search ----
+
+    [Fact]
+    public void Reset_OnADefaultSensorWithNoPendingEdit_IsNotExecutable_AndWritesNothing()
+    {
+        var (vm, _, manager) = Make(readings: CpuAndGpu0());
+        var core = Item(vm, "gpu0-core");
+        var writes = 0;
+        manager.Changed += (_, _) => writes++;
+
+        Assert.False(core.ResetCommand.CanExecute(null));
+        core.ResetCommand.Execute(null);
+
+        Assert.Equal(0, writes);
+        Assert.False(manager.Config.Sensors.ContainsKey("gpu0-core"));
+    }
+
+    [Fact]
+    public void Reset_BecomesExecutable_WhenTheSensorIsCustom_AndNotifiesTheCommand()
+    {
+        var (vm, _, _) = Make(readings: CpuAndGpu0());
+        var core = Item(vm, "gpu0-core");
+        var canExecuteChanged = 0;
+        core.ResetCommand.CanExecuteChanged += (_, _) => canExecuteChanged++;
+
+        core.GreenMax = 80;
+
+        Assert.True(core.ResetCommand.CanExecute(null));
+        Assert.True(canExecuteChanged > 0);
+    }
+
+    [Fact]
+    public void Reset_OnADefaultSensorWithAPendingInvalidEdit_IsExecutable_AndClearsTheEdit()
+    {
+        var (vm, _, manager) = Make(readings: CpuAndGpu0());
+        var core = Item(vm, "gpu0-core");
+        core.YellowMax = 10;
+        Assert.NotNull(core.Error);
+
+        Assert.True(core.ResetCommand.CanExecute(null));
+        core.ResetCommand.Execute(null);
+
+        Assert.Null(core.Error);
+        Assert.Equal((40d, 75d, 85d), Limits(core));
+        Assert.False(ThresholdResolver.HasCustom(manager.Config, "gpu0-core"));
+    }
+
+    [Fact]
+    public void MovingToNotShownAndBack_KeepsTheSameInstance_AndAPendingInvalidEdit()
+    {
+        var (vm, _, manager) = Make(readings: CpuAndGpu0());
+        var core = Item(vm, "gpu0-core");
+        core.YellowMax = 10;
+        Assert.NotNull(core.Error);
+
+        manager.Update(c => SensorPreferences.Update(c, "gpu0-core", p =>
+        {
+            p.ShowInWindow = false;
+            p.ShowInTray = false;
+            p.Notify = false;
+        }));
+
+        Assert.Same(core, vm.Groups.Last().Items.Single());
+        Assert.Equal(10, core.YellowMax);
+        Assert.NotNull(core.Error);
+
+        manager.Update(c => SensorPreferences.Update(c, "gpu0-core", p => p.ShowInWindow = true));
+
+        Assert.Same(core, Item(vm, "gpu0-core"));
+        Assert.Equal("GPU 0", vm.Groups.Single(g => g.Items.Contains(core)).Title);
+        Assert.Equal(10, core.YellowMax);
+        Assert.NotNull(core.Error);
+        Assert.False(ThresholdResolver.HasCustom(manager.Config, "gpu0-core"));
+    }
+
+    [Fact]
+    public void Search_MatchesTheStoredHardwareName_OfAnUndetectedAddedSensor_WithoutChangingItsCaption()
+    {
+        var config = WithAdded((VrmId, "VRM", Board, SensorKind.Motherboard));
+        var (vm, _, _) = Make(config, CpuAndGpu0());
+        var vrm = Item(vm, VrmId);
+
+        vm.SearchText = "crosshair";
+
+        Assert.True(vrm.IsVisible);
+        Assert.False(Item(vm, "cpu").IsVisible);
+        Assert.Equal(NotDetected, vrm.Caption);
+    }
+
+    [Fact]
+    public void Search_MatchesTheDefaultName_EvenAfterARename()
+    {
+        var (vm, _, manager) = Make(readings: CpuAndGpu0());
+        manager.Update(c => SensorPreferences.Update(c, "gpu0-hotspot", p => p.Label = "EVGA Hot"));
+        var defaultLabel = Item(vm, "gpu0-hotspot").Identity.DefaultLabel;
+
+        vm.SearchText = defaultLabel;
+
+        Assert.Equal("EVGA Hot", Item(vm, "gpu0-hotspot").Label);
+        Assert.True(Item(vm, "gpu0-hotspot").IsVisible);
+        Assert.False(Item(vm, "gpu0-core").IsVisible);
     }
 
     [Fact]

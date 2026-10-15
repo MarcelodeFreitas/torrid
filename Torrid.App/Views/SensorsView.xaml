@@ -26,6 +26,35 @@
             <Setter Property="VerticalAlignment" Value="Bottom"/>
         </Style>
 
+        <!-- A text-only muted link: brightens and underlines on hover, shows the keyboard focus ring. -->
+        <Style x:Key="LimitsLinkStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="MinHeight" Value="22"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                            <TextBlock x:Name="Label" Text="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}"
+                                       FontSize="{TemplateBinding FontSize}" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter TargetName="Label" Property="TextDecorations" Value="Underline"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <DataTemplate x:Key="SensorRowTemplate" DataType="{x:Type vm:SensorListItemViewModel}">
             <Border Style="{StaticResource PanelCardStyle}" Padding="16,10" Margin="0,0,0,6">
                 <Grid>
@@ -53,8 +82,19 @@
                                     AutomationProperties.Name="{Binding DefaultLabel, StringFormat='Use the default name {0}'}"
                                     Visibility="{Binding HasCustomLabel, Converter={StaticResource BoolToVisibility}}"/>
                         </Grid>
-                        <TextBlock Text="{Binding Caption}" Style="{StaticResource CaptionTextStyle}" Margin="1,5,0,0"
-                                   TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Caption}"/>
+                        <!-- The Limits link sits at the end of the caption line, inside the name column: the switch columns stay aligned. -->
+                        <Grid Margin="1,5,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Caption}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
+                                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Caption}"/>
+                            <Button Grid.Column="1" Style="{StaticResource LimitsLinkStyle}" Content="Limits" Margin="10,0,0,0"
+                                    Command="{Binding LimitsCommand}"
+                                    ToolTip="Set this sensor's colour limits on the Thresholds page"
+                                    AutomationProperties.Name="{Binding DefaultLabel, StringFormat='Limits for {0}'}"/>
+                        </Grid>
                     </StackPanel>
 
                     <TextBlock Grid.Column="1" Text="{Binding ValueText}" Style="{StaticResource RowValueStyle}"

@@ -67,7 +67,7 @@ public sealed class AppHost : IDisposable
         PawnIo = new PawnIoStatusTracker(options.Demo ? new DemoPawnIoDetector() : new RegistryPawnIoDetector());
 
         Home = new HomeViewModel(Sensors, Hardware, ConfigManager, PawnIo);
-        SensorsPage = new SensorsViewModel(Sensors, ConfigManager, Catalog);
+        SensorsPage = new SensorsViewModel(Sensors, ConfigManager, Catalog, ShowThresholdsFor);
         if (options.Demo && options.OpenAddSensor)
         {
             // Screenshot aid, demo only (also enforced by StartupOptions): the panel itself never scans on its own.
@@ -133,6 +133,16 @@ public sealed class AppHost : IDisposable
         _window.Show();
         if (_window.WindowState == WindowState.Minimized) _window.WindowState = WindowState.Normal;
         _window.Activate();
+    }
+
+    /// <summary>
+    /// The Sensors page's Limits link: opens the Thresholds page with that sensor expanded, scrolled to and focused.
+    /// The page takes the request when it is shown, so this works whether or not it was already on screen.
+    /// </summary>
+    public void ShowThresholdsFor(string sensorId)
+    {
+        Shell.Navigate(PageId.Thresholds);
+        ThresholdsPage.Focus(sensorId);
     }
 
     /// <summary>Shows a "Torrid test notification" toast through the same notifier that delivers alerts.</summary>

@@ -26,7 +26,9 @@ public sealed class SensorListItemViewModel : ObservableObject
     private bool _hasCustomLabel;
 
     /// <param name="remove">Removes an added (<c>hw:</c>) sensor; built-in rows have no Remove button.</param>
-    public SensorListItemViewModel(SensorIdentity identity, ConfigManager config, Action<string>? remove = null)
+    /// <param name="showLimits">Opens the Thresholds page focused on this sensor (the row's Limits link).</param>
+    public SensorListItemViewModel(
+        SensorIdentity identity, ConfigManager config, Action<string>? remove = null, Action<string>? showLimits = null)
     {
         Identity = identity;
         _config = config;
@@ -34,6 +36,7 @@ public sealed class SensorListItemViewModel : ObservableObject
         IsAdded = SensorIdentity.IsGenericId(identity.Id) && remove is not null;
         ResetLabelCommand = new RelayCommand(_ => Label = DefaultLabel);
         RemoveCommand = new RelayCommand(_ => remove?.Invoke(Id), _ => IsAdded);
+        LimitsCommand = new RelayCommand(_ => showLimits?.Invoke(Id), _ => showLimits is not null);
     }
 
     public SensorIdentity Identity { get; }
@@ -116,6 +119,9 @@ public sealed class SensorListItemViewModel : ObservableObject
     public bool IsAdded { get; }
 
     public ICommand RemoveCommand { get; }
+
+    /// <summary>The "Limits" link: shows this sensor on the Thresholds page.</summary>
+    public ICommand LimitsCommand { get; }
 
     /// <summary>Refreshes the preference-derived state from the config (no writes).</summary>
     public void RefreshPreferences(AppConfig config)

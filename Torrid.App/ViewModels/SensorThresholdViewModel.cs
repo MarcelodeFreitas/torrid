@@ -14,6 +14,7 @@ using Torrid.Core.Models;
 public sealed class SensorThresholdViewModel : ObservableObject
 {
     private readonly ConfigManager _config;
+    private readonly RelayCommand _resetCommand;
     private SensorReading? _reading;
     private string _label;
     private string _caption = SensorListItemViewModel.NotDetectedText;
@@ -36,7 +37,8 @@ public sealed class SensorThresholdViewModel : ObservableObject
         Identity = identity;
         _config = config;
         _label = identity.DefaultLabel;
-        ResetCommand = new RelayCommand(_ => Reset());
+        _resetCommand = new RelayCommand(_ => Reset(), _ => CanReset);
+        ResetCommand = _resetCommand;
         RefreshFromConfig();
     }
 
@@ -49,6 +51,9 @@ public sealed class SensorThresholdViewModel : ObservableObject
 
     /// <summary>The real sensor / hardware names, or "Not detected right now".</summary>
     public string Caption { get => _caption; private set => Set(ref _caption, value); }
+
+    /// <summary>The hardware name the sensor is read from: the live one, else the one stored for an added sensor.</summary>
+    internal string? HardwareName { get; private set; }
 
     /// <summary>The live value, or "--" when there is none.</summary>
     public string ValueText { get => _valueText; private set => Set(ref _valueText, value); }
@@ -73,7 +78,10 @@ public sealed class SensorThresholdViewModel : ObservableObject
         get => _error;
         private set
         {
-            if (Set(ref _error, value)) Raise(nameof(HasError));
+            if (!Set(ref _error, value)) return;
+
+            Raise(nameof(HasError));
+            _resetCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -85,7 +93,10 @@ public sealed class SensorThresholdViewModel : ObservableObject
         get => _isCustom;
         private set
         {
-            if (Set(ref _isCustom, value)) Raise(nameof(BadgeText));
+            if (!Set(ref _isCustom, value)) return;
+
+            Raise(nameof(BadgeText));
+            _resetCommand.RaiseCanExecuteChanged();
         }
     }
 
@@ -99,8 +110,13 @@ public sealed class SensorThresholdViewModel : ObservableObject
 
     public GridLength RedWidth => ThresholdRowViewModel.Star(_yellowMax * ThresholdRowViewModel.RedHeadroomFactor);
 
-    /// <summary>Removes the sensor's own band, so it follows its kind default again.</summary>
+    /// <summary>
+    /// Removes the sensor's own band, so it follows its kind default again. Only available when there is something to
+    /// undo: a custom band or an invalid pending edit.
+    /// </summary>
     public ICommand ResetCommand { get; }
+
+    private bool CanReset => IsCustom || HasError;
 
     /// <summary>Set by the page when this sensor is the target of <see cref="ThresholdsViewModel.Focus"/>.</summary>
     public bool IsFocused { get => _isFocused; internal set => Set(ref _isFocused, value); }
@@ -113,6 +129,7 @@ public sealed class SensorThresholdViewModel : ObservableObject
     {
         _reading = SensorRows.Detected(Identity, reading);
         IsDetected = _reading is not null;
+        HardwareName = _reading?.HardwareName ?? SensorRows.StoredHardwareName(_config.Config, Id);
 
         if (_reading is null)
         {
@@ -170,6 +187,9 @@ public sealed class SensorThresholdViewModel : ObservableObject
 
     private void Reset()
     {
+        // A default sensor with nothing pending has nothing to undo: writing the config then would be a no-op save.
+        if (!CanReset) return;
+
         _config.Update(c => ThresholdResolver.ClearCustom(c, Id));
         _hasPendingEdit = false;
         RefreshFromConfig();
