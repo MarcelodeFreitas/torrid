@@ -181,5 +181,39 @@ public class ThresholdResolverTests
     }
 
     [Fact]
+    public void SetCustom_OnAnIdThatIsNotAnAddedSensor_IsStoredAndResolved()
+    {
+        var config = new AppConfig();
+        const string id = "hw:/amdcpu/0/temperature/3";
+
+        ThresholdResolver.SetCustom(config, id, Band(40, 60, 80));
+
+        Assert.True(ThresholdResolver.HasCustom(config, id));
+        var band = ThresholdResolver.For(config, id, SensorKind.CpuOther);
+        Assert.Equal(40, band.BlueMax);
+        Assert.Equal(60, band.GreenMax);
+        Assert.Equal(80, band.YellowMax);
+        Assert.Empty(config.AddedSensors);
+        var pref = config.Sensors[id];
+        Assert.True(pref.ShowInWindow == null && pref.ShowInTray == null && pref.Notify == null && pref.Label == null);
+    }
+
+    [Fact]
+    public void ClearCustom_OnThatId_RemovesTheEntryWhenNothingElseIsLeft()
+    {
+        var config = new AppConfig();
+        const string id = "hw:/amdcpu/0/temperature/3";
+        ThresholdResolver.SetCustom(config, id, Band(40, 60, 80));
+
+        ThresholdResolver.ClearCustom(config, id);
+
+        Assert.False(config.Sensors.ContainsKey(id));
+        var band = ThresholdResolver.For(config, id, SensorKind.CpuOther);
+        Assert.Equal(40, band.BlueMax);
+        Assert.Equal(70, band.GreenMax);
+        Assert.Equal(85, band.YellowMax);
+    }
+
+    [Fact]
     public void ThresholdsListView_DefaultsToFalse() => Assert.False(new AppConfig().ThresholdsListView);
 }

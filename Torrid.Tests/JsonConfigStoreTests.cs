@@ -292,6 +292,20 @@ public class JsonConfigStoreTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Thresholds_ForAnIdNotInAddedSensors_SurviveSaveAndLoad()
+    {
+        const string id = "hw:/amdcpu/0/temperature/3";
+        var config = new AppConfig();
+        ThresholdResolver.SetCustom(config, id, new ThresholdBand { BlueMax = 40, GreenMax = 60, YellowMax = 80 });
+
+        new JsonConfigStore(_path).Save(config);
+        var loaded = new JsonConfigStore(_path).Load();
+
+        Assert.Equal(new[] { 40.0, 60, 80 }, Band(loaded.Sensors[id].Thresholds!));
+        Assert.Empty(loaded.AddedSensors);
+    }
+
     private static double[] Band(ThresholdBand b) => new[] { b.BlueMax, b.GreenMax, b.YellowMax };
 
     public void Dispose()

@@ -357,6 +357,26 @@ public class AddSensorViewModelTests
     }
 
     [Fact]
+    public async Task Add_KeepsLimitsAlreadySetForThatSensor()
+    {
+        var config = new AppConfig();
+        ThresholdResolver.SetCustom(config, CcdId, new ThresholdBand { BlueMax = 50, GreenMax = 65, YellowMax = 90 });
+        var (vm, _, manager) = Make(config);
+        vm.OpenCommand.Execute(null);
+        await vm.ScanAsync();
+
+        vm.Add(Item(vm, CcdId));
+
+        Assert.True(ThresholdResolver.HasCustom(manager.Config, CcdId));
+        var band = ThresholdResolver.For(manager.Config, CcdId, SensorKind.CpuOther);
+        Assert.Equal(50, band.BlueMax);
+        Assert.Equal(65, band.GreenMax);
+        Assert.Equal(90, band.YellowMax);
+        Assert.True(manager.Config.AddedSensors.ContainsKey(CcdId));
+        Assert.True(manager.Config.Sensors[CcdId].ShowInWindow);
+    }
+
+    [Fact]
     public async Task WithoutACatalog_ScanExplainsItIsUnavailable()
     {
         var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero);
