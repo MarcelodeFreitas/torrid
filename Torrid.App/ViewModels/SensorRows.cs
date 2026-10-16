@@ -2,6 +2,7 @@ namespace Torrid.App.ViewModels;
 
 using Torrid.Core.Config;
 using Torrid.Core.Models;
+using Torrid.Core.Sensors;
 
 /// <summary>One sensor of the Sensors / Thresholds pages and the device group it sits in.</summary>
 internal sealed record SensorRow(SensorIdentity Identity, DeviceGroup Group, string? HardwareName)
@@ -16,6 +17,12 @@ internal sealed record SensorRow(SensorIdentity Identity, DeviceGroup Group, str
 /// </summary>
 internal static class SensorRows
 {
+    /// <summary>The kinds of the built-in cards; a catalog entry they already read is "Already shown".</summary>
+    private static readonly SensorKind[] BuiltInKinds =
+    {
+        SensorKind.CpuPackage, SensorKind.GpuCore, SensorKind.GpuHotSpot, SensorKind.GpuVram,
+    };
+
     /// <summary>
     /// Detected ids, configured ids and added ids that <see cref="SensorDisplay.Identity"/> accepts (a <c>hw:</c> id only
     /// while it is in <see cref="AppConfig.AddedSensors"/>, so garbage keys and just-removed sensors get no row);
@@ -86,4 +93,21 @@ internal static class SensorRows
     /// <summary>Readings by id (first one wins), skipping nulls.</summary>
     public static Dictionary<string, SensorReading> ById(IReadOnlyList<SensorReading> readings) =>
         readings.Where(r => r is not null).DistinctBy(r => r.Id).ToDictionary(r => r.Id);
+
+    /// <summary>(hardware name, source sensor name) of every built-in card reading in <paramref name="readings"/>.</summary>
+    public static HashSet<(string Hardware, string Sensor)> BuiltInSources(IEnumerable<SensorReading> readings)
+    {
+        var sources = new HashSet<(string, string)>();
+        foreach (var reading in readings)
+        {
+            if (reading is null || SensorIdentity.IsGenericId(reading.Id) || !BuiltInKinds.Contains(reading.Kind)) continue;
+            if (reading.HardwareName is { } hardware && reading.SourceSensorName is { } source) sources.Add((hardware, source));
+        }
+
+        return sources;
+    }
+
+    /// <summary>A built-in id, or the very sensor a built-in card reads (same hardware and sensor name).</summary>
+    public static bool IsBuiltIn(CatalogSensor sensor, HashSet<(string Hardware, string Sensor)> builtInSources) =>
+        !SensorIdentity.IsGenericId(sensor.Id) || builtInSources.Contains((sensor.HardwareName ?? "", sensor.Name ?? ""));
 }
