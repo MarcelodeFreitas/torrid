@@ -59,9 +59,10 @@ Every sensor has its own limits: where its colour changes from blue to green, gr
 - **Default or Custom.** A sensor shows **Default** while it follows its type's defaults, and **Custom** once you set its own limits. **Reset** brings it back to the defaults.
 - **Limits.** Set blue below, green below and yellow up to, in °C. They must rise (blue < green < yellow) and stay between 0 and 150. A valid change applies when you leave the box (press Tab or click away); an invalid one is marked with an error and is not saved.
 - **Alerts.** A sensor's alert fires when its value goes above its **Yellow up to** limit, which is when it turns red. Alerts are switched per sensor on the Sensors page.
-- **Defaults by sensor type.** At the bottom of the page. New sensors start from these limits, and changing one only affects sensors you have not customised.
+- **Defaults by sensor type.** Open by default, below the device sections. New sensors start from these limits, and changing one only affects sensors you have not customised.
 - **Cards or List.** The Cards / List toggle switches between a card per sensor (with a preview bar) and one compact row per sensor. The choice is remembered. The search box filters by sensor name, hardware name or device.
 - **Not shown.** Sensors with Window, Tray and Alerts all off are listed in a collapsed **Not shown** section at the end.
+- **Advanced.** The last section lists every other temperature sensor your hardware reports (the other CPU sensors, motherboard chips, drives and so on) that is not on your Sensors page. Press **Scan for sensors** to fill it (Torrid never scans on its own); sensors are grouped by device and each has its own limits, Default/Custom badge and Reset, and the search box covers them. Setting limits here does not add the sensor to the Sensors page; the limits apply once you add it there. The values shown are from the last scan.
 - **From the Sensors page.** Each sensor row has a **Limits** link that opens the Thresholds page on that sensor.
 
 ## Running it

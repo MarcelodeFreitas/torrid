@@ -538,7 +538,7 @@
                       HorizontalScrollBarVisibility="Disabled" Focusable="False" Style="{StaticResource CardsOnlyStyle}">
             <StackPanel Margin="0,0,4,8">
                 <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource CardGroupTemplate}" Focusable="False"/>
-                <Expander Style="{StaticResource DefaultsSectionStyle}" Header="Defaults by sensor type"
+                <Expander Style="{StaticResource DefaultsSectionStyle}" Header="Defaults by sensor type" IsExpanded="True"
                           HeaderTemplate="{StaticResource SectionTitleTemplate}">
                     <StackPanel Margin="16,0,16,8">
                         <TextBlock Text="New sensors start from these limits; changing one only affects sensors you haven't customised."
@@ -552,6 +552,25 @@
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
+                    </StackPanel>
+                </Expander>
+                <Expander Style="{StaticResource DefaultsSectionStyle}" Header="Advanced: more sensors"
+                          HeaderTemplate="{StaticResource SectionTitleTemplate}"
+                          IsExpanded="{Binding IsAdvancedExpanded, Mode=TwoWay}">
+                    <StackPanel Margin="16,0,16,8">
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,12"
+                                   Text="Every other temperature sensor your hardware reports, for fine-grained limits. Setting limits here does not add the sensor to the Sensors page; they apply once you add it there. Values are from the last scan."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="{Binding ScanButtonText}"
+                                    Command="{Binding ScanCommand}" Padding="14,4" MinHeight="28" FontSize="13"
+                                    AutomationProperties.Name="Scan for sensors"/>
+                            <TextBlock Text="{Binding ScanMessage}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
+                                       Margin="12,0,0,0" Visibility="{Binding HasScanMessage, Converter={StaticResource BoolToVisibility}}"/>
+                            <TextBlock Text="Every temperature sensor found is already on your Sensors page." Style="{StaticResource CaptionTextStyle}"
+                                       VerticalAlignment="Center" Margin="12,0,0,0"
+                                       Visibility="{Binding ShowAllListed, Converter={StaticResource BoolToVisibility}}"/>
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding AdvancedGroups}" ItemTemplate="{StaticResource CardGroupTemplate}" Focusable="False"/>
                     </StackPanel>
                 </Expander>
             </StackPanel>
@@ -581,7 +600,7 @@
                     <TextBlock Grid.Column="6" Text="Reset" Style="{StaticResource ListHeaderStyle}"/>
                 </Grid>
                 <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource ListGroupTemplate}" Focusable="False"/>
-                <Expander Style="{StaticResource DefaultsSectionStyle}" Header="Defaults by sensor type"
+                <Expander Style="{StaticResource DefaultsSectionStyle}" Header="Defaults by sensor type" IsExpanded="True"
                           HeaderTemplate="{StaticResource SectionTitleTemplate}">
                     <StackPanel Margin="16,0,16,8">
                         <TextBlock Text="New sensors start from these limits; changing one only affects sensors you haven't customised."
@@ -594,6 +613,25 @@
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
+                    </StackPanel>
+                </Expander>
+                <Expander Style="{StaticResource DefaultsSectionStyle}" Header="Advanced: more sensors"
+                          HeaderTemplate="{StaticResource SectionTitleTemplate}"
+                          IsExpanded="{Binding IsAdvancedExpanded, Mode=TwoWay}">
+                    <StackPanel Margin="16,0,16,8">
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,0,0,12"
+                                   Text="Every other temperature sensor your hardware reports, for fine-grained limits. Setting limits here does not add the sensor to the Sensors page; they apply once you add it there. Values are from the last scan."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="{Binding ScanButtonText}"
+                                    Command="{Binding ScanCommand}" Padding="14,4" MinHeight="28" FontSize="13"
+                                    AutomationProperties.Name="Scan for sensors"/>
+                            <TextBlock Text="{Binding ScanMessage}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
+                                       Margin="12,0,0,0" Visibility="{Binding HasScanMessage, Converter={StaticResource BoolToVisibility}}"/>
+                            <TextBlock Text="Every temperature sensor found is already on your Sensors page." Style="{StaticResource CaptionTextStyle}"
+                                       VerticalAlignment="Center" Margin="12,0,0,0"
+                                       Visibility="{Binding ShowAllListed, Converter={StaticResource BoolToVisibility}}"/>
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding AdvancedGroups}" ItemTemplate="{StaticResource ListGroupTemplate}" Focusable="False"/>
                     </StackPanel>
                 </Expander>
             </StackPanel>
