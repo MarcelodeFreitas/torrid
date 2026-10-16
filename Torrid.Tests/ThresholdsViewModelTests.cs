@@ -893,6 +893,33 @@ public class ThresholdsViewModelTests
     }
 
     [Fact]
+    public async Task Scan_FailedAfterAllListed_KeepsTheAllListedState_AndShowsTheError()
+    {
+        var catalog = CatalogOf(new CatalogSensor(TctlId, "Core (Tctl/Tdie)", Cpu5950X, SensorKind.CpuOther, 60));
+        var (vm, _, _) = Make(readings: CpuAndGpu0(), catalog: catalog);
+        await vm.ScanAsync();
+
+        catalog.Result = SensorCatalogResult.Unavailable("Monitoring is paused while Riot Vanguard is running.");
+        await vm.ScanAsync();
+
+        Assert.Equal("Monitoring is paused while Riot Vanguard is running.", vm.ScanMessage);
+        Assert.True(vm.ShowAllListed);
+    }
+
+    [Fact]
+    public async Task Scan_ACatalogSensorWithABlankName_IsLabelledWithItsIdTail()
+    {
+        const string id = "hw:/amdcpu/0/temperature/5";
+        var (vm, _, _) = Make(catalog: CatalogOf(new CatalogSensor(id, "  ", Cpu5950X, SensorKind.CpuOther, 55)));
+
+        await vm.ScanAsync();
+
+        var label = Advanced(vm, id).Label;
+        Assert.False(string.IsNullOrWhiteSpace(label));
+        Assert.Equal("5", label);
+    }
+
+    [Fact]
     public async Task Scan_ShowsTheScanValueAndCaption()
     {
         var (vm, _, _) = Make(catalog: CatalogOf(CatalogSensors));

@@ -566,7 +566,7 @@
                                     AutomationProperties.Name="Scan for sensors"/>
                             <TextBlock Text="{Binding ScanMessage}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
                                        Margin="12,0,0,0" Visibility="{Binding HasScanMessage, Converter={StaticResource BoolToVisibility}}"/>
-                            <TextBlock Text="Every temperature sensor found is already on your Sensors page." Style="{StaticResource CaptionTextStyle}"
+                            <TextBlock Text="{x:Static vm:ThresholdsViewModel.AllListedMessage}" Style="{StaticResource CaptionTextStyle}"
                                        VerticalAlignment="Center" Margin="12,0,0,0"
                                        Visibility="{Binding ShowAllListed, Converter={StaticResource BoolToVisibility}}"/>
                         </StackPanel>
@@ -627,7 +627,7 @@
                                     AutomationProperties.Name="Scan for sensors"/>
                             <TextBlock Text="{Binding ScanMessage}" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center"
                                        Margin="12,0,0,0" Visibility="{Binding HasScanMessage, Converter={StaticResource BoolToVisibility}}"/>
-                            <TextBlock Text="Every temperature sensor found is already on your Sensors page." Style="{StaticResource CaptionTextStyle}"
+                            <TextBlock Text="{x:Static vm:ThresholdsViewModel.AllListedMessage}" Style="{StaticResource CaptionTextStyle}"
                                        VerticalAlignment="Center" Margin="12,0,0,0"
                                        Visibility="{Binding ShowAllListed, Converter={StaticResource BoolToVisibility}}"/>
                         </StackPanel>

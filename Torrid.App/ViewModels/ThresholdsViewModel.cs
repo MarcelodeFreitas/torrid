@@ -54,6 +54,7 @@ public sealed class ThresholdsViewModel : ObservableObject
     /// <summary>The device sections (in the Sensors page order), then the "Not shown" section when it has sensors.</summary>
     public ObservableCollection<ThresholdGroupViewModel> Groups { get; } = new();
 
+    /// <summary>Shown by the Advanced section when <see cref="ShowAllListed"/>; the view binds to it with x:Static.</summary>
     public const string AllListedMessage = "Every temperature sensor found is already on your Sensors page.";
 
     /// <summary>Device sections of catalog sensors that have no row above (empty until a scan).</summary>
@@ -83,7 +84,6 @@ public sealed class ThresholdsViewModel : ObservableObject
         {
             if (!Set(ref _scanMessage, value)) return;
             Raise(nameof(HasScanMessage));
-            Raise(nameof(ShowAllListed));
         }
     }
 
@@ -91,8 +91,11 @@ public sealed class ThresholdsViewModel : ObservableObject
 
     public string ScanButtonText => IsScanning ? "Scanning…" : HasScanned ? "Scan again" : "Scan for sensors";
 
-    /// <summary>True when a scan succeeded but every sensor it found already has a row above.</summary>
-    public bool ShowAllListed => HasScanned && ScanMessage is null && AdvancedGroups.Count == 0;
+    /// <summary>
+    /// True when the last successful scan found sensors that all already have a row above. A failed or empty scan keeps
+    /// the previous list, so it keeps this state too; its own message shows alongside.
+    /// </summary>
+    public bool ShowAllListed => HasScanned && AdvancedGroups.Count == 0;
 
     public ICommand ScanCommand => _scanCommand;
 
@@ -317,7 +320,9 @@ public sealed class ThresholdsViewModel : ObservableObject
         var items = new List<(DeviceGroup Group, SensorThresholdViewModel Item)>();
         foreach (var (sensor, group) in wanted)
         {
-            var identity = new SensorIdentity(sensor.Id, sensor.Name, sensor.Kind, null);
+            // Same fallback as Add sensor: a blank catalog name is labelled with the id's tail.
+            var name = string.IsNullOrWhiteSpace(sensor.Name) ? sensor.Id[(sensor.Id.LastIndexOf('/') + 1)..] : sensor.Name;
+            var identity = new SensorIdentity(sensor.Id, name, sensor.Kind, null);
             if (!_advancedById.TryGetValue(sensor.Id, out var item) || item.Identity != identity)
             {
                 item = new SensorThresholdViewModel(identity, _config);
@@ -326,7 +331,7 @@ public sealed class ThresholdsViewModel : ObservableObject
 
             item.DeviceTitle = group.Title;
             item.RefreshFromConfig();
-            item.UpdateReading(new SensorReading(sensor.Id, sensor.Name, sensor.Kind, null, sensor.ValueCelsius, sensor.HardwareName, sensor.Name));
+            item.UpdateReading(new SensorReading(sensor.Id, name, sensor.Kind, null, sensor.ValueCelsius, sensor.HardwareName, sensor.Name));
             items.Add((group, item));
         }
 
