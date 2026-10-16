@@ -1,6 +1,8 @@
 namespace Torrid.App.ViewModels;
 
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Windows.Input;
 using Torrid.Core.Config;
 using Torrid.Core.Models;
 using Torrid.Core.Sensors;
@@ -18,17 +20,27 @@ public sealed class ThresholdsViewModel : ObservableObject
 
     private readonly ISensorSource _sensors;
     private readonly ConfigManager _config;
+    private readonly ISensorCatalogSource? _catalog;
+    private readonly RelayCommand _scanCommand;
     private readonly Dictionary<string, ThresholdGroupViewModel> _groupsByKey = new();
     private readonly Dictionary<string, SensorThresholdViewModel> _itemsById = new();
+    private readonly Dictionary<string, SensorThresholdViewModel> _advancedById = new();
+    private readonly Dictionary<string, ThresholdGroupViewModel> _advancedGroupsByKey = new();
     private List<string> _layoutKeys = new();
+    private List<CatalogSensor> _catalogSensors = new();
     private string _searchText = "";
     private string? _focusedSensorId;
     private string? _pendingFocusId;
+    private bool _isAdvancedExpanded;
+    private bool _isScanning;
+    private string? _scanMessage;
 
-    public ThresholdsViewModel(ISensorSource sensors, ConfigManager config)
+    public ThresholdsViewModel(ISensorSource sensors, ConfigManager config, ISensorCatalogSource? catalog = null)
     {
         _sensors = sensors;
         _config = config;
+        _catalog = catalog;
+        _scanCommand = new RelayCommand(_ => _ = ScanAsync(), _ => !IsScanning);
         DefaultRows = new ObservableCollection<ThresholdRowViewModel>(
             Enum.GetValues<SensorKind>().Select(kind => new ThresholdRowViewModel(kind, Title(kind), config)));
 
@@ -41,6 +53,48 @@ public sealed class ThresholdsViewModel : ObservableObject
 
     /// <summary>The device sections (in the Sensors page order), then the "Not shown" section when it has sensors.</summary>
     public ObservableCollection<ThresholdGroupViewModel> Groups { get; } = new();
+
+    public const string AllListedMessage = "Every temperature sensor found is already on your Sensors page.";
+
+    /// <summary>Device sections of catalog sensors that have no row above (empty until a scan).</summary>
+    public ObservableCollection<ThresholdGroupViewModel> AdvancedGroups { get; } = new();
+
+    /// <summary>The Advanced section is collapsed at first; a search that matches inside it opens it. In-memory only.</summary>
+    public bool IsAdvancedExpanded { get => _isAdvancedExpanded; set => Set(ref _isAdvancedExpanded, value); }
+
+    public bool IsScanning
+    {
+        get => _isScanning;
+        private set
+        {
+            if (!Set(ref _isScanning, value)) return;
+            Raise(nameof(ScanButtonText));
+            _scanCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    public bool HasScanned { get; private set; }
+
+    /// <summary>Why the last scan gave no new list (refused, failed or nothing found); null otherwise.</summary>
+    public string? ScanMessage
+    {
+        get => _scanMessage;
+        private set
+        {
+            if (!Set(ref _scanMessage, value)) return;
+            Raise(nameof(HasScanMessage));
+            Raise(nameof(ShowAllListed));
+        }
+    }
+
+    public bool HasScanMessage => ScanMessage is not null;
+
+    public string ScanButtonText => IsScanning ? "Scanning…" : HasScanned ? "Scan again" : "Scan for sensors";
+
+    /// <summary>True when a scan succeeded but every sensor it found already has a row above.</summary>
+    public bool ShowAllListed => HasScanned && ScanMessage is null && AdvancedGroups.Count == 0;
+
+    public ICommand ScanCommand => _scanCommand;
 
     /// <summary>The ten defaults by sensor type: what sensors follow until they are customised.</summary>
     public ObservableCollection<ThresholdRowViewModel> DefaultRows { get; }
@@ -106,6 +160,63 @@ public sealed class ThresholdsViewModel : ObservableObject
         var id = _pendingFocusId;
         _pendingFocusId = null;
         return id;
+    }
+
+    /// <summary>
+    /// Scans once for the Advanced section; only the button calls this. A refused or failed scan keeps the previous list and
+    /// shows why. A scan that is already running is not started again.
+    /// </summary>
+    public async Task ScanAsync()
+    {
+        if (IsScanning) return;
+
+        IsScanning = true;
+        SensorCatalogResult? result;
+        string? error = null;
+        try
+        {
+            // Task.Run keeps the hardware work off the UI thread; the await resumes on the UI thread.
+            var catalog = _catalog;
+            result = catalog is null
+                ? SensorCatalogResult.Unavailable(AddSensorViewModel.NoCatalogMessage)
+                : await Task.Run(() => catalog.ScanAsync());
+        }
+        catch (OperationCanceledException)
+        {
+            result = null;
+            error = AddSensorViewModel.CancelledMessage;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"ThresholdsViewModel: scan failed: {ex}");
+            result = null;
+            error = $"Couldn't scan hardware: {ex.Message}";
+        }
+        finally
+        {
+            IsScanning = false;
+        }
+
+        if (result is null)
+        {
+            ScanMessage = error;
+            return;
+        }
+
+        var found = (result.Sensors ?? Array.Empty<CatalogSensor>())
+            .Where(s => s is not null && SensorIdentity.IsGenericId(s.Id))
+            .ToList();
+        if (found.Count == 0)
+        {
+            ScanMessage = result.UnavailableReason ?? AddSensorViewModel.NothingFoundMessage;
+            return;
+        }
+
+        _catalogSensors = found;
+        HasScanned = true;
+        ScanMessage = null;
+        Raise(nameof(ScanButtonText));
+        SyncAdvanced();
     }
 
     public static string Title(SensorKind kind) => kind switch
@@ -183,7 +294,67 @@ public sealed class ThresholdsViewModel : ObservableObject
         foreach (var stale in _itemsById.Keys.Except(rows.Select(r => r.Identity.Id)).ToList()) _itemsById.Remove(stale);
 
         _layoutKeys = layout;
+        SyncAdvanced();
         UpdateLiveValues(readings);
+    }
+
+    /// <summary>
+    /// Builds the Advanced sections from the last scan: the catalog sensors that have no row above, grouped by device. Their
+    /// scan values are shown as they were read; only the next scan changes them. Instances are kept across rebuilds.
+    /// </summary>
+    private void SyncAdvanced()
+    {
+        var readings = CurrentReadings().Where(r => r is not null).ToList();
+        var builtIn = SensorRows.BuiltInSources(readings);
+        var gpuNames = DeviceGroups.GpuNames(readings);
+        var wanted = _catalogSensors
+            .Where(s => !_itemsById.ContainsKey(s.Id) && !SensorRows.IsBuiltIn(s, builtIn))
+            .Select(s => (Sensor: s, Group: DeviceGroups.For(s.Kind, null, s.HardwareName, gpuNames)))
+            .OrderBy(w => w.Group.Rank)
+            .ThenBy(w => w.Group.Index)
+            .ToList();
+
+        var items = new List<(DeviceGroup Group, SensorThresholdViewModel Item)>();
+        foreach (var (sensor, group) in wanted)
+        {
+            var identity = new SensorIdentity(sensor.Id, sensor.Name, sensor.Kind, null);
+            if (!_advancedById.TryGetValue(sensor.Id, out var item) || item.Identity != identity)
+            {
+                item = new SensorThresholdViewModel(identity, _config);
+                _advancedById[sensor.Id] = item;
+            }
+
+            item.DeviceTitle = group.Title;
+            item.RefreshFromConfig();
+            item.UpdateReading(new SensorReading(sensor.Id, sensor.Name, sensor.Kind, null, sensor.ValueCelsius, sensor.HardwareName, sensor.Name));
+            items.Add((group, item));
+        }
+
+        var placed = new List<ThresholdGroupViewModel>();
+        foreach (var byDevice in items.GroupBy(i => i.Group.Key))
+        {
+            if (!_advancedGroupsByKey.TryGetValue(byDevice.Key, out var group))
+            {
+                group = new ThresholdGroupViewModel(byDevice.Key, byDevice.First().Group.Title);
+                _advancedGroupsByKey[byDevice.Key] = group;
+            }
+
+            var members = byDevice.Select(i => i.Item).ToList();
+            CollectionSync.Sync(group.Items, members);
+            group.Subtitle = DeviceGroups.Subtitle(members.Select(i => i.HardwareName));
+            placed.Add(group);
+        }
+
+        CollectionSync.Sync(AdvancedGroups, placed);
+        foreach (var group in _advancedGroupsByKey.Values)
+        {
+            if (!placed.Contains(group)) group.Items.Clear();
+        }
+
+        foreach (var stale in _advancedById.Keys.Except(wanted.Select(w => w.Sensor.Id)).ToList()) _advancedById.Remove(stale);
+
+        ApplyFilter(expandGroups: false);
+        Raise(nameof(ShowAllListed));
     }
 
     /// <summary>The instance for this sensor, kept while its identity is unchanged.</summary>
@@ -229,14 +400,17 @@ public sealed class ThresholdsViewModel : ObservableObject
     private void ApplyFilter(bool expandGroups)
     {
         var query = _searchText.Trim();
-        foreach (var item in _itemsById.Values) item.IsVisible = Matches(item, query);
+        foreach (var item in _itemsById.Values.Concat(_advancedById.Values)) item.IsVisible = Matches(item, query);
 
-        foreach (var group in Groups)
+        foreach (var group in Groups.Concat(AdvancedGroups))
         {
             var any = group.Items.Any(i => i.IsVisible);
             group.IsVisible = query.Length == 0 || any;
             if (expandGroups && query.Length > 0 && any) group.IsExpanded = true;
         }
+
+        // A match inside the Advanced section opens it, so the match can be seen.
+        if (expandGroups && query.Length > 0 && AdvancedGroups.Any(g => g.Items.Any(i => i.IsVisible))) IsAdvancedExpanded = true;
     }
 
     private static bool Matches(SensorThresholdViewModel item, string query) =>

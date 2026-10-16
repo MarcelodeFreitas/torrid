@@ -1,6 +1,7 @@
 using Torrid.App.ViewModels;
 using Torrid.Core.Config;
 using Torrid.Core.Models;
+using Torrid.Core.Sensors;
 
 namespace Torrid.Tests;
 
@@ -32,12 +33,12 @@ public class ThresholdsViewModelTests
     };
 
     private static (ThresholdsViewModel Vm, FakeSensorSourceForTests Source, ConfigManager Config) Make(
-        AppConfig? config = null, IReadOnlyList<SensorReading>? readings = null)
+        AppConfig? config = null, IReadOnlyList<SensorReading>? readings = null, ISensorCatalogSource? catalog = null)
     {
         var source = new FakeSensorSourceForTests();
         if (readings is not null) source.Publish(readings);
         var manager = new ConfigManager(new InMemoryConfigStore(), config ?? new AppConfig(), TimeSpan.Zero);
-        return (new ThresholdsViewModel(source, manager), source, manager);
+        return (new ThresholdsViewModel(source, manager, catalog), source, manager);
     }
 
     private static SensorThresholdViewModel Item(ThresholdsViewModel vm, string id) =>
@@ -799,5 +800,284 @@ public class ThresholdsViewModelTests
     {
         Assert.Equal("CPU temperature", ThresholdsViewModel.Title(SensorKind.CpuPackage));
         Assert.Equal("Other sensors", ThresholdsViewModel.Title(SensorKind.OtherTemp));
+    }
+
+    // ---- Advanced: every other temperature sensor the hardware reports (listed after a scan) ----
+
+    private const string CcdId = "hw:/amdcpu/0/temperature/3";
+    private const string TctlId = "hw:/amdcpu/0/temperature/2";
+
+    private static readonly CatalogSensor[] CatalogSensors =
+    {
+        new(CcdId, "Core #1 (CCD1)", Cpu5950X, SensorKind.CpuOther, 61.4),
+        new(TctlId, "Core (Tctl/Tdie)", Cpu5950X, SensorKind.CpuOther, 60),
+        new(VrmId, "VRM", Board, SensorKind.Motherboard, 52),
+    };
+
+    private sealed class FakeCatalog : ISensorCatalogSource
+    {
+        private int _calls;
+
+        public int Calls => _calls;
+        public SensorCatalogResult Result { get; set; } = new(Array.Empty<CatalogSensor>(), null);
+        public Exception? Throw { get; set; }
+
+        public Task<SensorCatalogResult> ScanAsync(CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref _calls);
+            if (Throw is not null) return Task.FromException<SensorCatalogResult>(Throw);
+            return Task.FromResult(Result);
+        }
+    }
+
+    private static FakeCatalog CatalogOf(params CatalogSensor[] sensors) =>
+        new() { Result = new SensorCatalogResult(sensors, null) };
+
+    private static SensorThresholdViewModel Advanced(ThresholdsViewModel vm, string id) =>
+        vm.AdvancedGroups.SelectMany(g => g.Items).Single(i => i.Id == id);
+
+    [Fact]
+    public void Advanced_BeforeAScan_IsEmpty_AndTheCatalogWasNeverCalled()
+    {
+        var catalog = CatalogOf(CatalogSensors);
+        var (vm, source, _) = Make(catalog: catalog);
+
+        source.Publish(CpuAndGpu0());
+
+        Assert.Equal(0, catalog.Calls);
+        Assert.Empty(vm.AdvancedGroups);
+        Assert.False(vm.HasScanned);
+        Assert.False(vm.IsAdvancedExpanded);
+        Assert.Equal("Scan for sensors", vm.ScanButtonText);
+    }
+
+    [Fact]
+    public async Task Scan_ListsTheCatalogSensorsThatHaveNoRow_GroupedByDevice()
+    {
+        var config = WithAdded((VrmId, "VRM", Board, SensorKind.Motherboard));
+        var (vm, _, _) = Make(config, CpuAndGpu0(), CatalogOf(CatalogSensors));
+
+        await vm.ScanAsync();
+
+        Assert.Equal(new[] { "CPU" }, vm.AdvancedGroups.Select(g => g.Title));
+        Assert.Equal(new[] { CcdId }, vm.AdvancedGroups.Single().Items.Select(i => i.Id));
+        Assert.Equal("Scan again", vm.ScanButtonText);
+        Assert.Null(vm.ScanMessage);
+        Assert.Equal(VrmId, Item(vm, VrmId).Id);
+    }
+
+    [Fact]
+    public async Task Scan_WithNoAddedSensors_ListsTheVrmUnderItsDevice()
+    {
+        var (vm, _, _) = Make(readings: CpuAndGpu0(), catalog: CatalogOf(CatalogSensors));
+
+        await vm.ScanAsync();
+
+        Assert.Equal(new[] { "CPU", "Motherboard" }, vm.AdvancedGroups.Select(g => g.Title));
+        Assert.Equal(Cpu5950X, vm.AdvancedGroups[0].Subtitle);
+        Assert.Equal(new[] { VrmId }, vm.AdvancedGroups[1].Items.Select(i => i.Id));
+    }
+
+    [Fact]
+    public async Task Scan_AllSensorsAlreadyListed_SetsShowAllListed()
+    {
+        var catalog = CatalogOf(new CatalogSensor(TctlId, "Core (Tctl/Tdie)", Cpu5950X, SensorKind.CpuOther, 60));
+        var (vm, _, _) = Make(readings: CpuAndGpu0(), catalog: catalog);
+
+        await vm.ScanAsync();
+
+        Assert.True(vm.HasScanned);
+        Assert.Empty(vm.AdvancedGroups);
+        Assert.True(vm.ShowAllListed);
+        Assert.Null(vm.ScanMessage);
+    }
+
+    [Fact]
+    public async Task Scan_ShowsTheScanValueAndCaption()
+    {
+        var (vm, _, _) = Make(catalog: CatalogOf(CatalogSensors));
+
+        await vm.ScanAsync();
+
+        var ccd = Advanced(vm, CcdId);
+        Assert.Equal("61 °C", ccd.ValueText);
+        Assert.True(ccd.HasValue);
+        Assert.Contains(Cpu5950X, ccd.Caption);
+        Assert.Equal("Core #1 (CCD1)", ccd.Label);
+        Assert.Equal(ColorZone.Green, ccd.Zone);
+    }
+
+    [Fact]
+    public async Task Scan_DoesNotAddAnythingOrChangeTheConfig()
+    {
+        var (vm, _, manager) = Make(readings: CpuAndGpu0(), catalog: CatalogOf(CatalogSensors));
+        var rowIds = vm.Groups.SelectMany(g => g.Items).Select(i => i.Id).ToList();
+
+        await vm.ScanAsync();
+
+        Assert.Empty(manager.Config.AddedSensors);
+        Assert.Empty(manager.Config.Sensors);
+        Assert.Equal(rowIds, vm.Groups.SelectMany(g => g.Items).Select(i => i.Id));
+    }
+
+    [Fact]
+    public async Task EditingAnAdvancedSensor_StoresOnlyItsOwnBand()
+    {
+        var (vm, _, manager) = Make(catalog: CatalogOf(CatalogSensors));
+        await vm.ScanAsync();
+
+        Advanced(vm, CcdId).GreenMax = 65;
+
+        var ccd = Advanced(vm, CcdId);
+        Assert.True(ccd.IsCustom);
+        Assert.Equal("Custom", ccd.BadgeText);
+        Assert.True(ThresholdResolver.HasCustom(manager.Config, CcdId));
+        var pref = manager.Config.Sensors[CcdId];
+        Assert.Equal((40d, 65d, 85d), Band(pref.Thresholds!));
+        Assert.True(pref.ShowInWindow == null && pref.ShowInTray == null && pref.Notify == null);
+        Assert.Empty(manager.Config.AddedSensors);
+        Assert.DoesNotContain(vm.Groups.SelectMany(g => g.Items), i => i.Id == CcdId);
+        Assert.False(Advanced(vm, VrmId).IsCustom);
+        Assert.Equal((45d, 70d, 90d), Limits(Advanced(vm, VrmId)));
+    }
+
+    [Fact]
+    public async Task ResetOnAnAdvancedSensor_RemovesTheEntryAndFollowsTheKindDefault()
+    {
+        var (vm, _, manager) = Make(catalog: CatalogOf(CatalogSensors));
+        await vm.ScanAsync();
+        Advanced(vm, CcdId).GreenMax = 65;
+        Advanced(vm, TctlId).GreenMax = 60; // its own band must survive the kind default change below
+
+        Advanced(vm, CcdId).ResetCommand.Execute(null);
+
+        var ccd = Advanced(vm, CcdId);
+        Assert.False(manager.Config.Sensors.ContainsKey(CcdId));
+        Assert.False(ccd.IsCustom);
+        Assert.Equal((40d, 70d, 85d), Limits(ccd));
+
+        Row(vm, SensorKind.CpuOther).GreenMax = 72;
+
+        Assert.Equal(72, Advanced(vm, CcdId).GreenMax);
+        Assert.Equal((40d, 60d, 85d), Limits(Advanced(vm, TctlId)));
+    }
+
+    [Fact]
+    public async Task AnAdvancedSensorThatGetsAdded_MovesToItsDeviceSection_WithItsLimits()
+    {
+        var (vm, _, manager) = Make(catalog: CatalogOf(CatalogSensors));
+        await vm.ScanAsync();
+        Advanced(vm, CcdId).GreenMax = 65;
+
+        manager.Update(c =>
+        {
+            c.AddedSensors = new Dictionary<string, AddedSensor>(c.AddedSensors)
+            {
+                [CcdId] = new AddedSensor { Name = "Core #1 (CCD1)", HardwareName = Cpu5950X, Kind = SensorKind.CpuOther },
+            };
+            SensorPreferences.Update(c, CcdId, p => p.ShowInWindow = true);
+        });
+
+        Assert.DoesNotContain(vm.AdvancedGroups.SelectMany(g => g.Items), i => i.Id == CcdId);
+        var item = Item(vm, CcdId);
+        Assert.True(item.IsCustom);
+        Assert.Equal((40d, 65d, 85d), Limits(item));
+
+        manager.Update(c =>
+        {
+            c.AddedSensors = new Dictionary<string, AddedSensor>();
+            c.Sensors.Remove(CcdId);
+        });
+
+        Assert.DoesNotContain(vm.Groups.SelectMany(g => g.Items), i => i.Id == CcdId);
+        Assert.False(Advanced(vm, CcdId).IsCustom);
+    }
+
+    [Fact]
+    public async Task Scan_Unavailable_KeepsThePreviousList_AndShowsTheReason()
+    {
+        var catalog = CatalogOf(CatalogSensors);
+        var (vm, _, _) = Make(catalog: catalog);
+        await vm.ScanAsync();
+        var before = vm.AdvancedGroups.SelectMany(g => g.Items).ToList();
+
+        catalog.Result = SensorCatalogResult.Unavailable("Monitoring is paused while Riot Vanguard is running.");
+        await vm.ScanAsync();
+
+        Assert.Equal("Monitoring is paused while Riot Vanguard is running.", vm.ScanMessage);
+        Assert.True(vm.HasScanMessage);
+        Assert.Equal(before, vm.AdvancedGroups.SelectMany(g => g.Items).ToList());
+        Assert.False(vm.IsScanning);
+    }
+
+    [Fact]
+    public async Task Scan_ThatThrows_ShowsAMessage_AndIsNotLeftScanning()
+    {
+        var catalog = CatalogOf(CatalogSensors);
+        catalog.Throw = new InvalidOperationException("boom");
+        var (vm, _, _) = Make(catalog: catalog);
+
+        await vm.ScanAsync();
+
+        Assert.Equal("Couldn't scan hardware: boom", vm.ScanMessage);
+        Assert.False(vm.IsScanning);
+    }
+
+    [Fact]
+    public async Task Scan_WithoutACatalog_ShowsNoCatalogMessage()
+    {
+        var (vm, _, _) = Make();
+
+        await vm.ScanAsync();
+
+        Assert.Equal(AddSensorViewModel.NoCatalogMessage, vm.ScanMessage);
+    }
+
+    [Fact]
+    public async Task ScanningAgain_ReusesTheRowInstances()
+    {
+        var (vm, _, _) = Make(catalog: CatalogOf(CatalogSensors));
+        await vm.ScanAsync();
+        var first = Advanced(vm, CcdId);
+
+        await vm.ScanAsync();
+
+        Assert.Same(first, Advanced(vm, CcdId));
+    }
+
+    [Fact]
+    public async Task Search_FiltersAdvancedRowsWithoutRecreatingThem_AndOpensTheSection()
+    {
+        var (vm, _, _) = Make(catalog: CatalogOf(CatalogSensors));
+        await vm.ScanAsync();
+        var ccd = Advanced(vm, CcdId);
+        Assert.False(vm.IsAdvancedExpanded);
+
+        vm.SearchText = "ccd1";
+        Assert.True(ccd.IsVisible);
+        Assert.True(vm.AdvancedGroups.Single(g => g.Key == "cpu").IsVisible);
+        Assert.True(vm.IsAdvancedExpanded);
+
+        vm.SearchText = "nomatch";
+        Assert.False(ccd.IsVisible);
+        Assert.False(vm.AdvancedGroups.Single(g => g.Key == "cpu").IsVisible);
+
+        vm.SearchText = "";
+        Assert.True(ccd.IsVisible);
+        Assert.Same(ccd, Advanced(vm, CcdId));
+    }
+
+    [Fact]
+    public async Task AdvancedValues_AreNotTouchedByATick()
+    {
+        var (vm, source, _) = Make(readings: CpuAndGpu0(), catalog: CatalogOf(CatalogSensors));
+        await vm.ScanAsync();
+        var ccd = Advanced(vm, CcdId);
+
+        var tick = CpuAndGpu0().Append(new SensorReading(CcdId, "Core #1 (CCD1)", SensorKind.CpuOther, null, 20, Cpu5950X, "Core #1 (CCD1)"));
+        source.Publish(tick.ToList());
+
+        Assert.Same(ccd, Advanced(vm, CcdId));
+        Assert.Equal("61 °C", ccd.ValueText);
     }
 }
