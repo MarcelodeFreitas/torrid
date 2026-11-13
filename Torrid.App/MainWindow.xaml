@@ -19,6 +19,9 @@
         <DataTemplate DataType="{x:Type vm:ThresholdsViewModel}">
             <views:ThresholdsView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:OverlaySettingsViewModel}">
+            <views:OverlayView/>
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:SettingsPageViewModel}">
             <views:SettingsView/>
         </DataTemplate>
@@ -34,21 +37,9 @@
         <Border Grid.Column="0" Background="{StaticResource SidebarBackgroundBrush}">
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,20,20,24">
-                    <!-- Logo: a small thermometer on an accent tile -->
-                    <Border Width="30" Height="30" CornerRadius="8" VerticalAlignment="Center">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="#8E9CFF" Offset="0"/>
-                                <GradientStop Color="#5E6FF0" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Border.Background>
-                        <Canvas Width="12" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Rectangle Canvas.Left="3" Canvas.Top="0" Width="6" Height="14" RadiusX="3" RadiusY="3"
-                                       Stroke="White" StrokeThickness="1.6"/>
-                            <Ellipse Canvas.Left="1" Canvas.Top="10" Width="10" Height="10" Fill="White"/>
-                            <Rectangle Canvas.Left="5.2" Canvas.Top="5" Width="1.6" Height="7" Fill="White"/>
-                        </Canvas>
-                    </Border>
+                    <!-- Logo: the Torrid sculpture (Assets/torrid-logo.png) -->
+                    <Image Source="pack://application:,,,/Assets/torrid-logo.png" Width="34" Height="34"
+                           VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
                     <TextBlock Text="Torrid" FontSize="20" FontWeight="SemiBold" Margin="10,0,0,1"
                                VerticalAlignment="Center"/>
                 </StackPanel>

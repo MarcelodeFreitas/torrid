@@ -39,4 +39,13 @@ public class SensorDefaultsTests
         Assert.False(SensorDefaults.ShownInTray(kind));
         Assert.True(SensorDefaults.Notify(kind));
     }
+
+    [Fact]
+    public void ShownInOverlay_MatchesShownInTray_ForEveryKind()
+    {
+        foreach (SensorKind kind in Enum.GetValues<SensorKind>())
+        {
+            Assert.Equal(SensorDefaults.ShownInTray(kind), SensorDefaults.ShownInOverlay(kind));
+        }
+    }
 }

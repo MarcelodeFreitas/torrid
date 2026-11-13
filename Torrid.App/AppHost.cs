@@ -4,7 +4,9 @@ using System.Diagnostics;
 using System.Windows;
 using Torrid.App.Drivers;
 using Torrid.App.Notifications;
+using Torrid.App.Overlay;
 using Torrid.App.Sensors;
+using Torrid.App.Startup;
 using Torrid.App.Tray;
 using Torrid.App.ViewModels;
 using Torrid.Core.Config;
@@ -31,6 +33,10 @@ public sealed class AppHost : IDisposable
             : new JsonConfigStore(options.ConfigPath);
         ConfigManager = new ConfigManager(store);
         var config = ConfigManager.Config;
+
+        // Re-created on every start so the logon task follows this exe after an update or move. Demo never touches Task Scheduler.
+        var startup = new TaskSchedulerStartup();
+        if (!options.Demo && config.StartWithWindows) _ = startup.SetEnabled(true);
 
         if (options.Demo)
         {
@@ -76,12 +82,14 @@ public sealed class AppHost : IDisposable
         }
 
         ThresholdsPage = new ThresholdsViewModel(Sensors, ConfigManager, Catalog);
-        SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware, SendTestNotification, PawnIo, UrlLauncher.Open);
+        OverlaySettings = new OverlaySettingsViewModel(ConfigManager, Sensors, Catalog);
+        SettingsPage = new SettingsPageViewModel(ConfigManager, Hardware, SendTestNotification, PawnIo, UrlLauncher.Open, startup);
         Shell = new ShellViewModel(new[]
         {
             new NavItem(PageId.Home, "Home", "\uE80F", Home),
             new NavItem(PageId.Sensors, "Sensors", "\uE9CA", SensorsPage),
             new NavItem(PageId.Thresholds, "Thresholds", "\uE790", ThresholdsPage),
+            new NavItem(PageId.Overlay, "Overlay", "\uE7F4", OverlaySettings),
             new NavItem(PageId.Settings, "Settings", "\uE713", SettingsPage),
         });
         if (options.InitialPage is PageId initialPage) Shell.Navigate(initialPage);
@@ -94,6 +102,8 @@ public sealed class AppHost : IDisposable
         // Tray "Settings" opens the Sensors page: live values plus the window / tray / alert switches.
         Tray.SettingsRequested += (_, _) => ShowMainWindow(PageId.Sensors);
         Tray.ExitRequested += (_, _) => Exit();
+
+        Overlay = new OverlayController(Sensors, Hardware, ConfigManager, OverlaySettings.SetHotkeyError);
     }
 
     public ConfigManager ConfigManager { get; }
@@ -115,15 +125,23 @@ public sealed class AppHost : IDisposable
 
     public ThresholdsViewModel ThresholdsPage { get; }
 
+    public OverlaySettingsViewModel OverlaySettings { get; }
+
     public SettingsPageViewModel SettingsPage { get; }
 
     public ShellViewModel Shell { get; }
 
     public TrayIconGroupManager Tray { get; }
 
+    public OverlayController Overlay { get; }
+
     public void AttachWindow(MainWindow window) => _window = window;
 
-    public void Start() => Sensors.Start();
+    public void Start()
+    {
+        Sensors.Start();
+        Overlay.Start();
+    }
 
     public void ShowMainWindow(PageId? page = null)
     {
@@ -196,6 +214,15 @@ public sealed class AppHost : IDisposable
             catch (Exception ex)
             {
                 Debug.WriteLine($"Disposing the tray failed: {ex}");
+            }
+
+            try
+            {
+                Overlay.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Disposing the overlay failed: {ex}");
             }
         }
         finally

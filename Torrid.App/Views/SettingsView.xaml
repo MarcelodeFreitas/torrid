@@ -202,6 +202,26 @@
                                       IsChecked="{Binding StartMinimizedToTray}"
                                       AutomationProperties.Name="Start minimized to the tray"/>
                         </Grid>
+
+                        <Border Style="{StaticResource DividerStyle}"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                <TextBlock Text="Start with Windows" Style="{StaticResource SettingTitleStyle}"/>
+                                <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                           Text='Torrid starts when you sign in, without a UAC prompt. Uses a Task Scheduler task named "Torrid".'/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}"
+                                      IsChecked="{Binding StartWithWindows}"
+                                      AutomationProperties.Name="Start with Windows"/>
+                        </Grid>
+                        <TextBlock Text="{Binding StartupError}" Style="{StaticResource CaptionTextStyle}" FontSize="13"
+                                   Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource ErrorTextBrush}"
+                                   Visibility="{Binding HasStartupError, Converter={StaticResource BoolToVisibility}}"/>
                     </StackPanel>
                 </Border>
 

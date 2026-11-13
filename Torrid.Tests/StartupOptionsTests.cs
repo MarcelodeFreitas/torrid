@@ -38,6 +38,7 @@ public class StartupOptionsTests
     [Theory]
     [InlineData("Sensors", PageId.Sensors)]
     [InlineData("thresholds", PageId.Thresholds)]
+    [InlineData("overlay", PageId.Overlay)]
     [InlineData("SETTINGS", PageId.Settings)]
     [InlineData("home", PageId.Home)]
     public void Page_IsParsedCaseInsensitively(string value, PageId expected)

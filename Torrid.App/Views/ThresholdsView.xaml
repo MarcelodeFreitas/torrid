@@ -88,6 +88,7 @@
             <Setter Property="Padding" Value="4,0"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
         <Style x:Key="ListHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource FieldLabelStyle}">
@@ -325,7 +326,7 @@
                                    Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}"/>
                     </StackPanel>
 
-                    <TextBlock Grid.Column="1" Text="{Binding ValueText}" Style="{StaticResource SensorValueStyle}"/>
+                    <TextBlock Grid.Column="1" Text="{Binding ValueText}" Style="{StaticResource SensorValueStyle}" VerticalAlignment="Center"/>
 
                     <TextBox Grid.Column="2" Style="{StaticResource ListLimitBoxStyle}" Text="{Binding BlueMax}"
                              AutomationProperties.Name="{Binding Label, StringFormat='Blue below limit for {0} in degrees Celsius'}"/>

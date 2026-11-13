@@ -1,0 +1,158 @@
+<UserControl x:Class="Torrid.App.Views.OverlayView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Torrid.App.ViewModels"
+             Background="Transparent" Focusable="True" IsTabStop="False" FocusVisualStyle="{x:Null}">
+    <UserControl.Resources>
+        <Style x:Key="SettingTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <Style x:Key="DividerStyle" TargetType="Border">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Background" Value="{StaticResource TrackBrush}"/>
+            <Setter Property="Margin" Value="0,14"/>
+        </Style>
+
+        <Style x:Key="SectionCardStyle" TargetType="Border" BasedOn="{StaticResource PanelCardStyle}">
+            <Setter Property="Margin" Value="0,0,0,14"/>
+            <Setter Property="Padding" Value="22,18"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="32,28,8,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,24,0">
+            <TextBlock Text="Overlay" Style="{StaticResource PageTitleStyle}"/>
+            <TextBlock Style="{StaticResource PageSubtitleStyle}" Text="Show chosen sensor temperatures on screen, in games too."/>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Margin="0,24,0,0" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <StackPanel Margin="0,0,16,16" MaxWidth="760" HorizontalAlignment="Left">
+                <Border Style="{StaticResource SectionCardStyle}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                <TextBlock Text="Shortcut" Style="{StaticResource SettingTitleStyle}"/>
+                                <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,3,0,0" TextWrapping="Wrap"
+                                           Text="Press this shortcut anywhere, even in a game, to show or hide the overlay. Click the box and press a new combination."/>
+                            </StackPanel>
+                            <TextBox x:Name="HotkeyBox" Grid.Column="1" Width="170" VerticalAlignment="Center" IsReadOnly="True"
+                                     Text="{Binding HotkeyText, Mode=OneWay}" AutomationProperties.Name="Overlay shortcut"
+                                     PreviewKeyDown="HotkeyBox_PreviewKeyDown"/>
+                        </Grid>
+                        <TextBlock Text="{Binding HotkeyError}" Style="{StaticResource CaptionTextStyle}" FontSize="13"
+                                   Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource ErrorTextBrush}"
+                                   Visibility="{Binding HasHotkeyError, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <Border Style="{StaticResource DividerStyle}"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                <TextBlock Text="Text size" Style="{StaticResource SettingTitleStyle}"/>
+                                <TextBlock Text="Size of the overlay text." Style="{StaticResource CaptionTextStyle}" Margin="0,3,0,0"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Slider Style="{StaticResource DarkSliderStyle}" Width="200" VerticalAlignment="Center"
+                                        Minimum="10" Maximum="48" TickFrequency="1" IsSnapToTickEnabled="True"
+                                        SmallChange="1" LargeChange="4"
+                                        Value="{Binding TextSize}" AutomationProperties.Name="Overlay text size"/>
+                                <TextBlock Text="{Binding TextSize}" FontSize="14" FontWeight="SemiBold" Width="56"
+                                           TextAlignment="Right" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Style="{StaticResource DividerStyle}"/>
+
+                        <TextBlock Text="Text colour" Style="{StaticResource SettingTitleStyle}"/>
+                        <TextBlock Text="Colour of every line in the overlay." Style="{StaticResource CaptionTextStyle}" Margin="0,3,0,10"/>
+                        <ListBox Style="{StaticResource RadioCardListStyle}" ItemContainerStyle="{StaticResource RadioCardItemStyle}"
+                                 ItemsSource="{Binding ColorChoices}" SelectedValuePath="Hex"
+                                 SelectedValue="{Binding TextColor}" AutomationProperties.Name="Overlay text colour">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:OverlayColorChoice}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="14" Height="14" Fill="{Binding Hex}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Name}" FontSize="14" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <Border Style="{StaticResource DividerStyle}"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                <TextBlock Text="Hide from screen sharing and recording" Style="{StaticResource SettingTitleStyle}"/>
+                                <TextBlock Text="The overlay will not show in captures, streams or screenshots. Turn off to show it there."
+                                           Style="{StaticResource CaptionTextStyle}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding HiddenFromCapture}"
+                                      AutomationProperties.Name="Hide the overlay from screen sharing and recording"/>
+                        </Grid>
+
+                        <Border Style="{StaticResource DividerStyle}"/>
+
+                        <TextBlock Text="Sensors to show" Style="{StaticResource SettingTitleStyle}"/>
+                        <TextBlock Text="Choose which sensors the overlay lists. A renamed sensor also shows its real name."
+                                   Style="{StaticResource CaptionTextStyle}" Margin="0,3,0,12"/>
+                        <ItemsControl ItemsSource="{Binding Sensors}" Focusable="False">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:OverlaySensorItem}">
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                            <TextBox Text="{Binding Label}" FontSize="14" MaxLength="40" MaxWidth="280" HorizontalAlignment="Left"
+                                                     AutomationProperties.Name="{Binding DefaultLabel, StringFormat='Name for {0}'}"
+                                                     ToolTip="Rename this sensor. Clear the name to use the default."/>
+                                            <TextBlock Text="{Binding Caption}" Style="{StaticResource CaptionTextStyle}" Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding Caption}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="{Binding IsShown}"
+                                                  AutomationProperties.Name="{Binding DefaultLabel, StringFormat='Show {0} in the overlay'}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SectionCardStyle}">
+                    <StackPanel DataContext="{Binding Sync}">
+                        <TextBlock Text="Sync sensors" Style="{StaticResource SettingTitleStyle}"/>
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,3,0,10" TextWrapping="Wrap"
+                                   Text="Scans your hardware for every temperature sensor you can add to the overlay. Scanning briefly accesses the hardware drivers. It is unavailable while monitoring is paused for an anti-cheat, and in GPU-only mode it scans only GPU and storage."/>
+                        <Button Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ScanCommand}" MinWidth="156" HorizontalAlignment="Left"
+                                Content="{Binding DataContext.SyncButtonText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                AutomationProperties.Name="Sync sensors"/>
+                        <TextBlock Text="{Binding Message}" Margin="2,12,0,0" FontSize="13" TextWrapping="Wrap"
+                                   AutomationProperties.LiveSetting="Polite" Foreground="{StaticResource TextMutedBrush}"
+                                   Visibility="{Binding HasMessage, Converter={StaticResource BoolToVisibility}}"/>
+                        <ItemsControl ItemsSource="{Binding Groups}" ItemTemplate="{StaticResource AddSensorGroupTemplate}" Focusable="False"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

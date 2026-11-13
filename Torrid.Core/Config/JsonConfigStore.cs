@@ -2,6 +2,7 @@ namespace Torrid.Core.Config;
 
 using System.Text.Json;
 using Torrid.Core.Models;
+using Torrid.Core.Overlay;
 using Torrid.Core.Sensors;
 
 public sealed class JsonConfigStore : IConfigStore
@@ -91,8 +92,12 @@ public sealed class JsonConfigStore : IConfigStore
             .ToList();
         if (!Enum.IsDefined(config.WhileAntiCheatActive))
         {
-            config.WhileAntiCheatActive = AntiCheatBehavior.Pause;
+            config.WhileAntiCheatActive = AntiCheatBehavior.Continue;
         }
+
+        if (!Hotkey.TryParse(config.OverlayHotkey, out _)) config.OverlayHotkey = new AppConfig().OverlayHotkey;
+        config.OverlayTextSize = OverlayAppearance.ClampTextSize(config.OverlayTextSize);
+        if (!OverlayAppearance.IsValidColor(config.OverlayTextColor)) config.OverlayTextColor = OverlayAppearance.DefaultColor;
 
         return config;
     }

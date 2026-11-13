@@ -8,5 +8,7 @@ public static class SensorDefaults
 
     public static bool ShownInTray(SensorKind kind) => ShownInWindow(kind);
 
+    public static bool ShownInOverlay(SensorKind kind) => ShownInTray(kind);
+
     public static bool Notify(SensorKind kind) => true;
 }

@@ -4,7 +4,7 @@ using Torrid.App.ViewModels;
 
 /// <summary>
 /// Command-line switches: <c>--show</c>, <c>--demo</c>, <c>--demo-paused</c> (implies <c>--demo</c>), <c>--config &lt;path&gt;</c>,
-/// and <c>--page &lt;Home|Sensors|Thresholds|Settings&gt;</c> (initial page, used for screenshots) and
+/// and <c>--page &lt;Home|Sensors|Thresholds|Overlay|Settings&gt;</c> (initial page, used for screenshots) and
 /// <c>--test-toast</c> (send one test notification ~15 s after start, then exit; used by tools/Verify-Toast.ps1) and
 /// <c>--open-add-sensor</c> (demo only: open the Sensors page's Add sensor panel and scan the demo catalog; used for screenshots).
 /// </summary>

@@ -52,4 +52,18 @@ public class SensorPreferencesTests
 
         Assert.False(config.Sensors.ContainsKey("cpu"));
     }
+
+    [Fact]
+    public void ShowInOverlayAlone_KeepsThePreference_AndClearingItRemovesTheEntry()
+    {
+        var config = new AppConfig();
+        SensorPreferences.Update(config, "cpu", p => p.ShowInOverlay = true);
+
+        Assert.True(config.Sensors.ContainsKey("cpu"));
+        Assert.False(new SensorPreference { ShowInOverlay = false }.IsEmpty);
+
+        SensorPreferences.Update(config, "cpu", p => p.ShowInOverlay = null);
+
+        Assert.False(config.Sensors.ContainsKey("cpu"));
+    }
 }

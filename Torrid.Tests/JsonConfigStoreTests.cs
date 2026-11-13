@@ -162,10 +162,10 @@ public class JsonConfigStoreTests : IDisposable
     }
 
     [Fact]
-    public void AntiCheatSettings_RoundTripAndDefaultToPause()
+    public void AntiCheatSettings_RoundTripAndDefaultToKeepMonitoring()
     {
         var defaults = new JsonConfigStore(_path).Load();
-        Assert.Equal(AntiCheatBehavior.Pause, defaults.WhileAntiCheatActive);
+        Assert.Equal(AntiCheatBehavior.Continue, defaults.WhileAntiCheatActive);
         Assert.Empty(defaults.ExtraProtectedProcesses);
 
         var store = new JsonConfigStore(_path);
@@ -178,14 +178,14 @@ public class JsonConfigStoreTests : IDisposable
     }
 
     [Fact]
-    public void Load_NullExtraProcessesOrBogusBehavior_FallBackToSafeValues()
+    public void Load_NullExtraProcessesOrBogusBehavior_FallBackToDefaults()
     {
         File.WriteAllText(_path, "{\"ExtraProtectedProcesses\": null, \"WhileAntiCheatActive\": 99}");
 
         var config = new JsonConfigStore(_path).Load();
 
         Assert.NotNull(config.ExtraProtectedProcesses);
-        Assert.Equal(AntiCheatBehavior.Pause, config.WhileAntiCheatActive);
+        Assert.Equal(AntiCheatBehavior.Continue, config.WhileAntiCheatActive);
     }
 
     [Fact]
@@ -304,6 +304,64 @@ public class JsonConfigStoreTests : IDisposable
 
         Assert.Equal(new[] { 40.0, 60, 80 }, Band(loaded.Sensors[id].Thresholds!));
         Assert.Empty(loaded.AddedSensors);
+    }
+
+    [Fact]
+    public void OverlaySettings_HaveDefaults()
+    {
+        var config = new AppConfig();
+
+        Assert.Equal("Ctrl+Alt+O", config.OverlayHotkey);
+        Assert.Equal(18, config.OverlayTextSize);
+        Assert.Equal("#FFFFFF", config.OverlayTextColor);
+    }
+
+    [Fact]
+    public void OverlaySettings_SurviveSaveAndLoad()
+    {
+        var store = new JsonConfigStore(_path);
+        var config = new AppConfig { OverlayHotkey = "Shift+F9", OverlayTextSize = 30, OverlayTextColor = "#FF9F43" };
+        SensorPreferences.Update(config, "cpu", p => p.ShowInOverlay = true);
+
+        store.Save(config);
+        var loaded = store.Load();
+
+        Assert.Equal("Shift+F9", loaded.OverlayHotkey);
+        Assert.Equal(30, loaded.OverlayTextSize);
+        Assert.Equal("#FF9F43", loaded.OverlayTextColor);
+        Assert.True(loaded.Sensors["cpu"].ShowInOverlay);
+    }
+
+    [Fact]
+    public void Normalize_FixesBadOverlayValues()
+    {
+        File.WriteAllText(_path, "{ \"OverlayHotkey\": \"nonsense\", \"OverlayTextSize\": 500, \"OverlayTextColor\": \"red\" }");
+
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.Equal("Ctrl+Alt+O", config.OverlayHotkey);
+        Assert.Equal(48, config.OverlayTextSize);
+        Assert.Equal("#FFFFFF", config.OverlayTextColor);
+    }
+
+    [Fact]
+    public void Load_OldFileWithoutTheCaptureKey_DefaultsToHidden()
+    {
+        File.WriteAllText(_path, "{ \"OverlayHotkey\": \"Shift+F9\", \"OverlayTextSize\": 30 }");
+
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.True(config.OverlayHiddenFromCapture);
+    }
+
+    [Fact]
+    public void Load_CaptureKeyFalse_LoadsAsFalse()
+    {
+        File.WriteAllText(_path, "{ \"OverlayHiddenFromCapture\": false }");
+
+        var config = new JsonConfigStore(_path).Load();
+
+        Assert.False(config.OverlayHiddenFromCapture);
     }
 
     private static double[] Band(ThresholdBand b) => new[] { b.BlueMax, b.GreenMax, b.YellowMax };
