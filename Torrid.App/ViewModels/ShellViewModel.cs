@@ -1,6 +1,6 @@
 namespace Torrid.App.ViewModels;
 
-public enum PageId { Home, Sensors, Thresholds, Settings }
+public enum PageId { Home, Sensors, Thresholds, Overlay, Settings }
 
 public sealed class NavItem : ObservableObject
 {

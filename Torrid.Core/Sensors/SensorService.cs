@@ -41,7 +41,7 @@ public sealed class SensorService : ISensorSource, IHardwareStatusSource, ISenso
         Func<IReadOnlyDictionary<string, AddedSensor>>? addedSensors,
         Func<HardwareGroups, IHardwareComputer> openComputer)
     {
-        _behavior = behavior ?? (() => AntiCheatBehavior.Pause);
+        _behavior = behavior ?? (() => AntiCheatBehavior.Continue);
         _extraProcesses = extraProcesses ?? (() => Array.Empty<string>());
         _processLister = processLister ?? new SystemProcessLister();
         _addedSensors = addedSensors ?? (() => AddedView.Empty.Map);

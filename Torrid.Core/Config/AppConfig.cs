@@ -2,6 +2,7 @@ namespace Torrid.Core.Config;
 
 using System.Text.Json.Serialization;
 using Torrid.Core.Models;
+using Torrid.Core.Overlay;
 using Torrid.Core.Sensors;
 
 public sealed class AppConfig
@@ -11,6 +12,9 @@ public sealed class AppConfig
     public int NotificationRefireMinutes { get; set; } = 0;
     public bool StartMinimizedToTray { get; set; } = true;
 
+    /// <summary>Re-created as a logon task on every start, so the task keeps pointing at this exe.</summary>
+    public bool StartWithWindows { get; set; } = true;
+
     /// <summary>The Thresholds page shows the advanced list instead of the cards.</summary>
     public bool ThresholdsListView { get; set; }
     public Dictionary<string, SensorPreference> Sensors { get; set; } = new();
@@ -19,9 +23,14 @@ public sealed class AppConfig
     public Dictionary<string, AddedSensor> AddedSensors { get; set; } = new();
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
-    public AntiCheatBehavior WhileAntiCheatActive { get; set; } = AntiCheatBehavior.Pause;
+    public AntiCheatBehavior WhileAntiCheatActive { get; set; } = AntiCheatBehavior.Continue;
 
     public List<string> ExtraProtectedProcesses { get; set; } = new();
+
+    public string OverlayHotkey { get; set; } = "Ctrl+Alt+O";
+    public int OverlayTextSize { get; set; } = OverlayAppearance.DefaultTextSize;
+    public string OverlayTextColor { get; set; } = OverlayAppearance.DefaultColor;
+    public bool OverlayHiddenFromCapture { get; set; } = true;
 
     public static Dictionary<SensorKind, ThresholdBand> DefaultThresholds() => new()
     {

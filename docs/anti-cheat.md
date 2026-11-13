@@ -4,7 +4,7 @@ Some online games ship an anti-cheat (Riot Vanguard, Easy Anti-Cheat, BattlEye a
 
 ## Short version
 
-- By default, when Torrid sees an anti-cheat running it **pauses monitoring**: it closes its hardware access completely and stops reading sensors until the anti-cheat is gone.
+- By default, when Torrid sees an anti-cheat running it **keeps monitoring** and does not change anything. You can switch to **Pause monitoring** (it closes its hardware access completely and stops reading sensors until the anti-cheat is gone) or **GPU only** in Settings.
 - Torrid cannot be tested against Vanguard (or any other anti-cheat) here, so this is a best-effort precaution, not a guarantee.
 - If a game still complains, see [If a game still complains](#if-a-game-still-complains).
 
@@ -30,9 +30,9 @@ You choose the behaviour under **Settings, Anti-cheat compatibility, When an ant
 
 | Behaviour | What happens | Notes |
 |---|---|---|
-| **Pause monitoring** (default) | Torrid closes the hardware entirely and stops reading. Sensors show as paused, the tray tooltip says `paused (<product> is running)`, and no alerts are raised. When the anti-cheat exits, monitoring resumes by itself. | The safest option. You get no temperatures while the game is running. |
+| **Pause monitoring** | Torrid closes the hardware entirely and stops reading. Sensors show as paused, the tray tooltip says `paused (<product> is running)`, and no alerts are raised. When the anti-cheat exits, monitoring resumes by itself. | The safest option. You get no temperatures while the game is running. |
 | **GPU only** | Torrid keeps reading GPU temperatures and stops reading the CPU. It no longer enables the CPU, motherboard and memory hardware, which are the parts that use PawnIO. | You keep GPU temperatures during the game. Whether avoiding the CPU path is enough to satisfy a given anti-cheat is not known. |
-| **Keep monitoring** | Nothing changes. Torrid only records that an anti-cheat was detected so the UI can say so. | Some games may refuse to start or may remove you from a match. Use at your own risk. |
+| **Keep monitoring** (default) | Nothing changes. Torrid only records that an anti-cheat was detected so the UI can say so. | Some games may refuse to start or may remove you from a match. Use at your own risk. |
 
 ## Which hardware Torrid opens
 
@@ -94,12 +94,16 @@ The exact cause of the Vanguard complaint originally reported on the development
 
 Things to try, in order:
 
-1. Make sure **Settings, When an anti-cheat is running** is on **Pause monitoring**. Check the status line on that page: it says `Paused` while an anti-cheat is detected.
+1. If the game refuses to start or removes you, set **Settings, When an anti-cheat is running** to **Pause monitoring**. Check the status line on that page: it says `Paused` while an anti-cheat is detected.
 2. If the game's anti-cheat is not on the known list, add the game or anti-cheat process under **Also treat these programs as anti-cheat**.
 3. Try **GPU only** if you want temperatures during the game and the game tolerates it. If it complains, go back to Pause.
 4. Exit Torrid completely from the tray menu (right-click the tray icon, **Exit**) before launching the game. Closing the window only hides it.
 5. If the anti-cheat still objects, check whether PawnIO is installed and uninstall it if you do not need CPU temperatures.
 6. If the problem persists, please report the **exact error code and message** the anti-cheat shows (for Vanguard, for example, a `VAN` or `VANGUARD` code). That is the information needed to find the real cause.
+
+## The on-screen overlay
+
+The overlay is an ordinary topmost window, and its shortcut uses the Windows `RegisterHotKey` call. Torrid installs no keyboard hook and injects nothing into other programs. The overlay reads only readings Torrid already has, and it shows `paused` while monitoring is paused for an anti-cheat. Whether an anti-cheat accepts a visible overlay window is unknown, as with the rest of Torrid.
 
 ## Limits you should know about
 

@@ -1,4 +1,5 @@
 using Torrid.App.Drivers;
+using Torrid.App.Startup;
 using Torrid.App.ViewModels;
 using Torrid.Core.Config;
 using Torrid.Core.Drivers;
@@ -14,7 +15,7 @@ public class SettingsPageViewModelTests
         var hardware = new FakeSensorSourceForTests();
         var manager = new ConfigManager(new InMemoryConfigStore(), config ?? new AppConfig(), TimeSpan.Zero);
         var pawnIo = new PawnIoStatusTracker(new FakePawnIoDetector());
-        return (new SettingsPageViewModel(manager, hardware, sendTestNotification ?? (() => { }), pawnIo, _ => { }), manager, hardware);
+        return (new SettingsPageViewModel(manager, hardware, sendTestNotification ?? (() => { }), pawnIo, _ => { }, new FakeStartup()), manager, hardware);
     }
 
     private static (SettingsPageViewModel Vm, FakePawnIoDetector Detector, List<string> Opened) MakePawnIo(PawnIoStatus status)
@@ -23,7 +24,7 @@ public class SettingsPageViewModelTests
         var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero);
         var detector = new FakePawnIoDetector(status);
         var opened = new List<string>();
-        var vm = new SettingsPageViewModel(manager, hardware, () => { }, new PawnIoStatusTracker(detector), opened.Add);
+        var vm = new SettingsPageViewModel(manager, hardware, () => { }, new PawnIoStatusTracker(detector), opened.Add, new FakeStartup());
         return (vm, detector, opened);
     }
 
@@ -99,7 +100,7 @@ public class SettingsPageViewModelTests
 
         Assert.Equal(new[] { AntiCheatBehavior.Pause, AntiCheatBehavior.GpuOnly, AntiCheatBehavior.Continue },
             vm.AntiCheatChoices.Select(c => c.Value));
-        Assert.Equal("Pause monitoring (recommended)", vm.AntiCheatChoices[0].Title);
+        Assert.Equal("Keep monitoring (default)", vm.AntiCheatChoices[2].Title);
         Assert.All(vm.AntiCheatChoices, c => Assert.False(string.IsNullOrWhiteSpace(c.Description)));
     }
 
@@ -283,10 +284,124 @@ public class SettingsPageViewModelTests
         var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero);
         var tracker = new PawnIoStatusTracker(new ThrowingPawnIoDetector());
 
-        var vm = new SettingsPageViewModel(manager, hardware, () => { }, tracker, _ => { });
+        var vm = new SettingsPageViewModel(manager, hardware, () => { }, tracker, _ => { }, new FakeStartup());
 
         Assert.Equal(PawnIoState.Unknown, vm.PawnIoState);
         Assert.Equal("Couldn't check the PawnIO version.", vm.PawnIoStatusText);
+    }
+
+    private sealed class FakeStartup : IStartupRegistration
+    {
+        public bool Enabled { get; set; }
+        public string? ErrorToReturn { get; set; }
+        public List<bool> Calls { get; } = new();
+
+        public bool IsEnabled() => Enabled;
+
+        public string? SetEnabled(bool enable)
+        {
+            Calls.Add(enable);
+            if (ErrorToReturn is not null) return ErrorToReturn;
+            Enabled = enable;
+            return null;
+        }
+    }
+
+    private static SettingsPageViewModel MakeStartup(FakeStartup startup) =>
+        new(new ConfigManager(new InMemoryConfigStore(), new AppConfig(), TimeSpan.Zero), new FakeSensorSourceForTests(),
+            () => { }, new PawnIoStatusTracker(new FakePawnIoDetector()), _ => { }, startup);
+
+    [Fact]
+    public void StartWithWindows_ChangeSucceeds_SavesTheChoiceToConfig()
+    {
+        var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig { StartWithWindows = false }, TimeSpan.Zero);
+        var vm = new SettingsPageViewModel(manager, new FakeSensorSourceForTests(), () => { }, new PawnIoStatusTracker(new FakePawnIoDetector()), _ => { }, new FakeStartup());
+
+        vm.StartWithWindows = true;
+
+        Assert.True(manager.Config.StartWithWindows);
+    }
+
+    [Fact]
+    public void StartWithWindows_ChangeFails_DoesNotSaveTheChoiceToConfig()
+    {
+        var manager = new ConfigManager(new InMemoryConfigStore(), new AppConfig { StartWithWindows = false }, TimeSpan.Zero);
+        var vm = new SettingsPageViewModel(manager, new FakeSensorSourceForTests(), () => { }, new PawnIoStatusTracker(new FakePawnIoDetector()), _ => { }, new FakeStartup { ErrorToReturn = "Access is denied" });
+
+        vm.StartWithWindows = true;
+
+        Assert.False(manager.Config.StartWithWindows);
+    }
+
+    [Fact]
+    public void StartWithWindows_ReflectsTheRegistration()
+    {
+        Assert.False(MakeStartup(new FakeStartup()).StartWithWindows);
+        Assert.True(MakeStartup(new FakeStartup { Enabled = true }).StartWithWindows);
+    }
+
+    [Fact]
+    public void StartWithWindows_TurnOn_CallsTheRegistration_AndKeepsItOn()
+    {
+        var startup = new FakeStartup();
+        var vm = MakeStartup(startup);
+
+        vm.StartWithWindows = true;
+
+        Assert.Equal(new[] { true }, startup.Calls);
+        Assert.True(vm.StartWithWindows);
+        Assert.Null(vm.StartupError);
+    }
+
+    [Fact]
+    public void StartWithWindows_TurnOff_CallsTheRegistration()
+    {
+        var startup = new FakeStartup { Enabled = true };
+        var vm = MakeStartup(startup);
+
+        vm.StartWithWindows = false;
+
+        Assert.Equal(new[] { false }, startup.Calls);
+        Assert.False(vm.StartWithWindows);
+    }
+
+    [Fact]
+    public void StartWithWindows_Failure_KeepsTheOldValue_AndShowsTheMessage()
+    {
+        var vm = MakeStartup(new FakeStartup { ErrorToReturn = "Access is denied" });
+
+        vm.StartWithWindows = true;
+
+        Assert.False(vm.StartWithWindows);
+        Assert.Equal("Access is denied", vm.StartupError);
+        Assert.True(vm.HasStartupError);
+    }
+
+    [Fact]
+    public void StartWithWindows_SuccessAfterFailure_ClearsTheMessage()
+    {
+        var startup = new FakeStartup { ErrorToReturn = "Access is denied" };
+        var vm = MakeStartup(startup);
+        vm.StartWithWindows = true;
+
+        startup.ErrorToReturn = null;
+        vm.StartWithWindows = true;
+
+        Assert.True(vm.StartWithWindows);
+        Assert.Null(vm.StartupError);
+        Assert.False(vm.HasStartupError);
+    }
+
+    [Fact]
+    public void StartWithWindows_FailureRaisesPropertyChanged()
+    {
+        var vm = MakeStartup(new FakeStartup { ErrorToReturn = "Access is denied" });
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        vm.StartWithWindows = true;
+
+        Assert.Contains(nameof(SettingsPageViewModel.StartWithWindows), raised);
     }
 
     private sealed class ThrowingPawnIoDetector : IPawnIoDetector

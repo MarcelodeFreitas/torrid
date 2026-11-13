@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows.Input;
 using Torrid.App.Drivers;
+using Torrid.App.Startup;
 using Torrid.Core.Config;
 using Torrid.Core.Drivers;
 using Torrid.Core.Sensors;
@@ -24,17 +25,22 @@ public sealed class SettingsPageViewModel : ObservableObject
     private readonly ConfigManager _config;
     private readonly IHardwareStatusSource _hardware;
     private readonly PawnIoStatusTracker _pawnIo;
+    private readonly IStartupRegistration _startup;
     private readonly RelayCommand _addProcessCommand;
     private string _newProcessName = "";
     private string _hardwareStatusText = "";
     private bool _isAntiCheatDetected;
+    private bool _startWithWindows;
+    private string? _startupError;
 
     public SettingsPageViewModel(ConfigManager config, IHardwareStatusSource hardware, Action sendTestNotification,
-        PawnIoStatusTracker pawnIo, Action<string> openUrl)
+        PawnIoStatusTracker pawnIo, Action<string> openUrl, IStartupRegistration startup)
     {
         _config = config;
         _hardware = hardware;
         _pawnIo = pawnIo;
+        _startup = startup;
+        _startWithWindows = startup.IsEnabled();
         SendTestNotificationCommand = new RelayCommand(_ => sendTestNotification());
         OpenPawnIoDownloadCommand = new RelayCommand(_ => openUrl(PawnIoDownloadUrl));
         RecheckPawnIoCommand = new RelayCommand(_ => _pawnIo.Refresh());
@@ -42,11 +48,11 @@ public sealed class SettingsPageViewModel : ObservableObject
 
         AntiCheatChoices = new[]
         {
-            new AntiCheatChoice(AntiCheatBehavior.Pause, "Pause monitoring (recommended)",
+            new AntiCheatChoice(AntiCheatBehavior.Pause, "Pause monitoring",
                 "Stop reading all sensors until the game closes. Nothing touches the hardware."),
             new AntiCheatChoice(AntiCheatBehavior.GpuOnly, "GPU only — no PawnIO driver",
                 "Keep GPU and storage temperatures; CPU, motherboard and memory temperatures (the parts that need the PawnIO driver) pause."),
-            new AntiCheatChoice(AntiCheatBehavior.Continue, "Keep monitoring",
+            new AntiCheatChoice(AntiCheatBehavior.Continue, "Keep monitoring (default)",
                 "Ignore the anti-cheat. Some games may refuse to start or kick you."),
         };
 
@@ -98,6 +104,32 @@ public sealed class SettingsPageViewModel : ObservableObject
             Raise(nameof(StartMinimizedToTray));
         }
     }
+
+    /// <summary>Read from the startup task once, so it reflects a task the user deleted or created in Task Scheduler.</summary>
+    public bool StartWithWindows
+    {
+        get => _startWithWindows;
+        set
+        {
+            if (value != _startWithWindows)
+            {
+                var error = _startup.SetEnabled(value);
+                if (error is null)
+                {
+                    _startWithWindows = value;
+                    _config.Update(c => c.StartWithWindows = value);
+                }
+                StartupError = error;
+            }
+
+            // Always raise: after a failed change the switch must snap back to the stored value.
+            Raise(nameof(StartWithWindows));
+        }
+    }
+
+    public string? StartupError { get => _startupError; private set { if (Set(ref _startupError, value)) Raise(nameof(HasStartupError)); } }
+
+    public bool HasStartupError => _startupError is not null;
 
     public AntiCheatBehavior WhileAntiCheatActive
     {

@@ -10,6 +10,9 @@ public static class SensorDisplay
     public static bool IsShownInTray(AppConfig config, SensorIdentity sensor) =>
         Preference(config, sensor.Id)?.ShowInTray ?? SensorDefaults.ShownInTray(sensor.Kind);
 
+    public static bool IsShownInOverlay(AppConfig config, SensorIdentity sensor) =>
+        Preference(config, sensor.Id)?.ShowInOverlay ?? SensorDefaults.ShownInOverlay(sensor.Kind);
+
     public static bool NotificationsEnabled(AppConfig config, SensorIdentity sensor) =>
         Preference(config, sensor.Id)?.Notify ?? SensorDefaults.Notify(sensor.Kind);
 
@@ -21,6 +24,9 @@ public static class SensorDisplay
 
     public static bool IsShownInTray(AppConfig config, SensorReading reading) =>
         IsShownInTray(config, SensorIdentity.FromReading(reading));
+
+    public static bool IsShownInOverlay(AppConfig config, SensorReading reading) =>
+        IsShownInOverlay(config, SensorIdentity.FromReading(reading));
 
     public static bool NotificationsEnabled(AppConfig config, SensorReading reading) =>
         NotificationsEnabled(config, SensorIdentity.FromReading(reading));

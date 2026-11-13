@@ -89,4 +89,18 @@ public class SensorDisplayTests
         Assert.False(SensorDisplay.NotificationsEnabled(config, reading));
         Assert.Equal("Core!", SensorDisplay.ResolveLabel(config, reading));
     }
+
+    [Fact]
+    public void IsShownInOverlay_DefaultsToTheTrayDefault_AndHonoursThePreference()
+    {
+        var config = new AppConfig();
+        Assert.True(SensorDisplay.IsShownInOverlay(config, Cpu));
+        Assert.False(SensorDisplay.IsShownInOverlay(config, Core));
+
+        SensorPreferences.Update(config, "gpu0-core", p => p.ShowInOverlay = true);
+        SensorPreferences.Update(config, "cpu", p => p.ShowInOverlay = false);
+
+        Assert.True(SensorDisplay.IsShownInOverlay(config, Core));
+        Assert.False(SensorDisplay.IsShownInOverlay(config, Cpu));
+    }
 }

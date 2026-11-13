@@ -21,10 +21,10 @@ Most GPU monitoring tools show core temperature only. For thermal validation and
 
 ## Features
 
-- **One window with a sidebar.** Pages: **Home** (live dashboard of the sensors you chose), **Sensors** (every sensor found, with switches for Window / Tray / Alerts and renaming to tell identical cards apart), **Thresholds** (set where blue, green, yellow and red begin for each sensor) and **Settings** (poll interval, repeat alerts, start minimized, anti-cheat behaviour, PawnIO driver status, test notification). Edits apply instantly and save automatically.
+- **One window with a sidebar.** Pages: **Home** (live dashboard of the sensors you chose), **Sensors** (every sensor found, with switches for Window / Tray / Alerts; rename a sensor here or on the Overlay page, one name used everywhere), **Thresholds** (set where blue, green, yellow and red begin for each sensor), **Overlay** (overlay shortcut, text size, colour, which sensors it lists, and renaming them) and **Settings** (poll interval, repeat alerts, start minimized, start with Windows, anti-cheat behaviour, PawnIO driver status, test notification). Edits apply instantly and save automatically.
 - **Per-sensor tray icons.** Each chosen sensor gets its own tray icon with a colour-coded number, a tooltip, and a blink while that sensor is in the red zone. Left-click opens the window on Home; the right-click menu has only Settings (opens the Sensors page) and Exit. Closing the window only hides it; Exit from the tray quits.
 - **Alerts.** A Windows toast fires once when a sensor enters red, with optional repeat every N minutes while it stays red. A "Send test notification" button in Settings checks that alerts reach you.
-- **Anti-cheat safety.** While a known anti-cheat is running, Torrid pauses (default), switches to GPU only, or carries on, as you choose. See [docs/anti-cheat.md](docs/anti-cheat.md).
+- **Anti-cheat safety.** While a known anti-cheat is running, Torrid carries on (default), pauses, or switches to GPU only, as you choose. See [docs/anti-cheat.md](docs/anti-cheat.md).
 - **Sensible defaults.** Only the CPU temperature and GPU hot spot are shown in the window and tray at first (alerts are on for every sensor); the other sensors Torrid knows about (per device: CPU package, GPU core, GPU hot spot, GPU VRAM / memory junction) can be switched on from the Sensors page.
 - **Add any temperature sensor.** **Add sensor** on the Sensors page scans for every temperature sensor LibreHardwareMonitor can see (motherboard and VRM, chipset, storage, memory, extra CPU sensors such as CCDs or SoC, extra GPU sensors) and adds the ones you pick. Added sensors appear on Home, in the tray and in alerts like the built-in ones, each with its own thresholds. See [Adding more sensors](#adding-more-sensors).
 
@@ -48,7 +48,7 @@ Honest limits:
 - **Motherboard, CPU and memory sensors need administrator rights and the PawnIO driver** (see below). Without them the scan may list nothing for those parts, or values read `0` or `--`. Storage and GPU sensors do not use PawnIO (storage may still need administrator rights). A real scan has only been run without administrator rights on one machine: it found only the CPU `Core (Tctl/Tdie)` (reading 0.0) and three GPU sensors, all of which the built-in cards already read, so nothing addable showed up on that machine without administrator rights (no motherboard, CCD, memory or storage sensors). Everything else is verified with demo data only.
 - **There is no separate "CPU hot spot" sensor.** The CPU card reads the CPU temperature (on AMD Tctl/Tdie; on Intel the package or hottest core). Extra AMD sensors such as CCD1/CCD2 and SoC can be added (administrator rights needed).
 - **"Other sensors" are best effort.** Sensors of hardware Torrid does not classify are shown when the hardware they belong to is already being read, but Torrid does not open extra hardware just for them.
-- **Scanning is manual.** Torrid never scans by itself; a scan briefly opens every hardware group the current anti-cheat setting allows (including PawnIO-backed ones). Scanning is **unavailable while an anti-cheat is running** with the default Pause setting, and covers only GPU and storage in GPU-only mode.
+- **Scanning is manual.** Torrid never scans by itself; a scan briefly opens every hardware group the current anti-cheat setting allows (including PawnIO-backed ones). Scanning is **unavailable while an anti-cheat is running** with the Pause setting, and covers only GPU and storage in GPU-only mode.
 - **Added motherboard or memory sensors make Torrid use PawnIO for those groups too.** Torrid only opens the hardware groups it needs: with nothing added that is CPU and GPU, exactly as before. Adding a motherboard or memory sensor adds that group (both use PawnIO), and only at the **Keep monitoring** / no-anti-cheat level; **GPU only** never opens them. Details in [docs/anti-cheat.md](docs/anti-cheat.md).
 - An added sensor that cannot be read right now (hardware removed, monitoring paused, group not allowed) keeps its row, shows `--` and "Not detected right now", and never raises an alert.
 
@@ -65,6 +65,20 @@ Every sensor has its own limits: where its colour changes from blue to green, gr
 - **Advanced.** The last section lists every other temperature sensor your hardware reports (the other CPU sensors, motherboard chips, drives and so on) that is not on your Sensors page. Press **Scan for sensors** to fill it (Torrid never scans on its own); sensors are grouped by device and each has its own limits, Default/Custom badge and Reset, and the search box covers them. Setting limits here does not add the sensor to the Sensors page; the limits apply once you add it there. The values shown are from the last scan.
 - **From the Sensors page.** Each sensor row has a **Limits** link that opens the Thresholds page on that sensor.
 
+## Overlay
+
+An on-screen list of chosen sensor temperatures in the top-right corner of the primary screen. Press **Ctrl+Alt+O** anywhere to show or hide it. The shortcut, text size, text colour and the sensors it lists are set on the **Overlay** page.
+
+- It is hidden when Torrid starts. It never takes focus, and mouse clicks pass through it.
+- It shows only readings Torrid already has and opens no hardware of its own. While monitoring is paused for an anti-cheat, its lines read `paused`.
+- A shortcut needs at least one of Ctrl, Alt, Shift or Win plus a letter, digit or F1-F24 key.
+- The overlay is hidden from screen sharing and recording by default; the Overlay page has a switch to show it in captures (needs Windows 10 version 2004 or newer).
+
+Known limits:
+
+- An exclusive-fullscreen game draws over every other window, so the overlay does not show there. It works in windowed and borderless-windowed modes.
+- If another program already uses the shortcut, the Overlay page shows a message. Choose a different shortcut.
+
 ## Running it
 
 Torrid asks for administrator rights on launch (the published build embeds a `requireAdministrator` manifest). Reading the CPU temperature needs it; without it the CPU reads `0`. GPU temperatures read fine without it on the development machine.
@@ -75,7 +89,7 @@ The CPU temperature comes from a kernel driver called **PawnIO**, which Torrid d
 
 Torrid shows the driver's status under **Settings, CPU temperature driver (PawnIO)** (installed version, or "isn't installed"), with an "Open download page" button (it only opens the page in your browser) and a "Re-check" button to use after you install it. When PawnIO is missing, Home also shows a short note pointing to Settings. Torrid recommends **PawnIO 2.1.0 or newer** (the latest known is 2.2.0): older versions were signed with a certificate that was reported to be shared with cheat software and that FACEIT's anti-cheat blocked. That report concerned FACEIT (see [namazso/PawnIO.Setup issue #1](https://github.com/namazso/PawnIO.Setup/issues/1)); how other anti-cheats, Riot Vanguard included, treat PawnIO is unconfirmed. Details in [docs/anti-cheat.md](docs/anti-cheat.md).
 
-Windows will show a UAC prompt each time it starts. Separately, Torrid creates a **Start Menu shortcut** so that Windows delivers its notifications (see below).
+Windows shows a UAC prompt each time you start Torrid yourself. To avoid that at login, **Settings, Startup, Start with Windows** is on by default: Torrid adds a Task Scheduler task named `Torrid` (run at logon, highest privileges) every time it starts, so it starts at sign-in with no prompt. Turn the switch off to remove the task. Debug builds use a task named `Torrid (Dev)`, and creating it needs an elevated terminal. Separately, Torrid creates a **Start Menu shortcut** so that Windows delivers its notifications (see below).
 
 ### Start Menu shortcut side effect
 
@@ -106,7 +120,7 @@ Run the Debug build from `Torrid.App\bin\Debug\net8.0-windows10.0.17763.0\Torrid
 | `--demo` | Use fake two-GPU data instead of real hardware (deterministic). Without `--config` nothing is read from or saved to your real config |
 | `--demo-paused` | Like `--demo`, but simulates an anti-cheat being active |
 | `--config <path>` | Use this config file instead of `%AppData%\Torrid\config.json` |
-| `--page <Home\|Sensors\|Thresholds\|Settings>` | Page to open first (handy for screenshots) |
+| `--page <Home\|Sensors\|Thresholds\|Overlay\|Settings>` | Page to open first (handy for screenshots) |
 | `--test-toast` | Send one test notification about 15 seconds after start, then exit (used by `tools\Verify-Toast.ps1`) |
 | `--open-add-sensor` | Demo only (ignored without `--demo` / `--demo-paused`): open the Sensors page's Add sensor panel and scan the demo hardware at start (for screenshots) |
 

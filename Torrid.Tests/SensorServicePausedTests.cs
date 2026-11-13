@@ -13,7 +13,7 @@ public class SensorServicePausedTests
     [Fact]
     public void PausedAtLaunch_ExposesNullValuedCpuReadingWithoutOpeningHardware()
     {
-        using var service = new SensorService(60_000, processLister: new FakeLister());
+        using var service = new SensorService(60_000, behavior: () => AntiCheatBehavior.Pause, processLister: new FakeLister());
 
         Assert.Equal(HardwareAccessLevel.Paused, service.Status.Level);
         Assert.Equal("Riot Vanguard", service.Status.AntiCheat!.Product);
@@ -40,7 +40,7 @@ public class SensorServicePausedTests
     [Fact]
     public async Task ScanAsync_WhilePaused_ReturnsTheReasonAndNoSensorsWithoutOpeningHardware()
     {
-        using var service = new SensorService(60_000, processLister: new FakeLister());
+        using var service = new SensorService(60_000, behavior: () => AntiCheatBehavior.Pause, processLister: new FakeLister());
 
         var result = await service.ScanAsync();
 
@@ -68,7 +68,7 @@ public class SensorServicePausedTests
             ["not-a-valid-id"] = new() { Name = "Garbage", Kind = SensorKind.Motherboard },
         };
 
-        using var service = new SensorService(60_000, processLister: new FakeLister(), addedSensors: () => added);
+        using var service = new SensorService(60_000, behavior: () => AntiCheatBehavior.Pause, processLister: new FakeLister(), addedSensors: () => added);
 
         Assert.Equal(new[] { "cpu", "hw:/lpc/nct6798d/0/temperature/4" }, service.CurrentReadings.Select(r => r.Id));
         var vrm = service.CurrentReadings[1];
