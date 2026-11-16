@@ -76,7 +76,7 @@ An on-screen list of chosen sensor temperatures in the top-right corner of the p
 
 Known limits:
 
-- An exclusive-fullscreen game draws over every other window, so the overlay does not show there. It works in windowed and borderless-windowed modes.
+- The overlay stays on top of other windows, including windowed and borderless games. An exclusive-fullscreen game draws over every window, so the overlay cannot show there; switch the game to borderless / fullscreen windowed, or keep Windows' fullscreen optimizations on for it (many games then present through the desktop and the overlay shows).
 - If another program already uses the shortcut, the Overlay page shows a message. Choose a different shortcut.
 
 ## Running it
